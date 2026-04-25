@@ -86,6 +86,7 @@ export function registerWorkerRequest(input: {
 
 export type VoiceOrderCommand = {
   intent: 'add' | 'remove' | 'clear' | 'send' | 'unknown';
+  tableId?: string | null;
   itemName: string | null;
   items?: { itemName: string; quantity: number }[];
   quantity: number;
@@ -105,6 +106,41 @@ export function parseVoiceOrderCommandRequest(
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(input),
+  });
+}
+
+export function transcribeVoiceOrderRequest(
+  token: string,
+  input: {
+    audioUri: string;
+    menu: { name: string; category: string }[];
+    tables: { id: string; label: string }[];
+  },
+) {
+  const form = new FormData();
+
+  form.append('audio', {
+    uri: input.audioUri,
+    name: 'voice-order.m4a',
+    type: 'audio/mp4',
+  } as unknown as Blob);
+  form.append('menu', JSON.stringify(input.menu));
+  form.append('tables', JSON.stringify(input.tables));
+
+  return fetch(`${API_BASE_URL}/api/voice/transcribe-order`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: form,
+  }).then(async (response) => {
+    const body = (await response.json().catch(() => ({}))) as ApiErrorBody;
+
+    if (!response.ok) {
+      throw new Error(body.message ?? 'Voice transcription failed');
+    }
+
+    return body as VoiceOrderCommand & { transcript: string };
   });
 }
 

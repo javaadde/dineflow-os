@@ -1,4 +1,5 @@
 import { MaterialIcons } from '@expo/vector-icons';
+import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { PropsWithChildren, useEffect, useMemo, useState } from 'react';
@@ -33,6 +34,7 @@ import {
   parseVoiceOrderCommandRequest,
   registerCompanyRequest,
   registerWorkerRequest,
+  transcribeVoiceOrderRequest,
 } from '@/utils/api';
 
 const red = '#B00012';
@@ -425,6 +427,8 @@ const menu = [
   { category: 'Seafood', label: 'APPETIZER', name: 'Crispy Calamari', price: '$16.00', amount: 16 },
   { category: 'Seafood', label: 'APPETIZER', name: 'Garlic Prawns', price: '$18.50', amount: 18.5 },
   { category: 'Steaks', label: 'MAINS', name: 'Ribeye Steak', price: '$32.00', amount: 32 },
+  { category: 'Drinks', label: 'DRINKS', name: 'Fresh Lime', price: '$6.00', amount: 6 },
+  { category: 'Drinks', label: 'DRINKS', name: 'Pineapple Mojito', price: '$9.00', amount: 9 },
 ];
 
 type CartItem = (typeof menu)[number] & {
@@ -460,7 +464,9 @@ export function OrderCreationScreen() {
   const [voiceFeedback, setVoiceFeedback] = useState('Try: "add two Caprese Salad" or "send order".');
   const [voiceStage, setVoiceStage] = useState<VoiceStage>('idle');
   const [voiceDraft, setVoiceDraft] = useState<VoiceDraftItem[]>([]);
+  const [voiceDraftTableId, setVoiceDraftTableId] = useState<string | null>(null);
   const [lastVoiceParam, setLastVoiceParam] = useState<string | null>(null);
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const selectedTable = tables.find((table) => table.id === selectedTableId);
   const currentUser = useAuthStore((state) => state.currentUser);
   const createOrder = useAuthStore((state) => state.createOrder);
@@ -473,7 +479,7 @@ export function OrderCreationScreen() {
 
     if (voiceParam && voiceParam !== lastVoiceParam) {
       setLastVoiceParam(voiceParam);
-      startVoiceAgent();
+      void startVoiceAgent();
     }
   }, [params.voice, lastVoiceParam]);
 
@@ -503,6 +509,58 @@ export function OrderCreationScreen() {
 
   const removeDraftItem = (itemName: string) => {
     setVoiceDraft((current) => current.filter((item) => item.name !== itemName));
+  };
+
+  const applyParsedVoiceCommand = (command: {
+    transcript?: string;
+    tableId?: string | null;
+    itemName?: string | null;
+    quantity?: number;
+    items?: { itemName: string | null; quantity: number }[];
+    message?: string;
+  }) => {
+    const commandItems = command.items?.length
+      ? command.items
+      : command.itemName
+        ? [{ itemName: command.itemName, quantity: command.quantity ?? 1 }]
+        : [];
+    const draftItems = commandItems
+      .map((commandItem) => {
+        const matchedItem = menu.find((item) => item.name === commandItem.itemName);
+        return matchedItem ? { ...matchedItem, qty: Math.max(commandItem.quantity || 1, 1) } : null;
+      })
+      .filter((item): item is VoiceDraftItem => Boolean(item));
+
+    if (command.transcript) {
+      setVoiceTranscript(command.transcript);
+    }
+
+    setVoiceDraft(draftItems);
+    setVoiceDraftTableId(command.tableId ?? null);
+    setVoiceStage('review');
+    setVoiceFeedback(
+      command.message ||
+        (draftItems.length > 0
+          ? `${draftItems.length} item${draftItems.length === 1 ? '' : 's'} found.`
+          : 'No menu items found. Edit the text and parse again.'),
+    );
+  };
+
+  const localTableFromTranscript = (spokenText = voiceTranscript) => {
+    const text = spokenText.trim().toLowerCase();
+    const tableMatch = text.match(/\btable\s+([a-z]+|\d+)\b/);
+
+    if (!tableMatch) {
+      return null;
+    }
+
+    const tableValue = numberWords[tableMatch[1]] ?? Number(tableMatch[1]);
+
+    if (!Number.isFinite(tableValue)) {
+      return null;
+    }
+
+    return `T-${String(tableValue).padStart(2, '0')}`;
   };
 
   const localDraftFromTranscript = (spokenText = voiceTranscript) => {
@@ -549,22 +607,8 @@ export function OrderCreationScreen() {
           menu: menu.map((item) => ({ name: item.name, category: item.category })),
         });
 
-        const commandItems = command.items?.length
-          ? command.items
-          : command.itemName
-            ? [{ itemName: command.itemName, quantity: command.quantity }]
-            : [];
-        const draftItems = commandItems
-          .map((commandItem) => {
-            const matchedItem = menu.find((item) => item.name === commandItem.itemName);
-            return matchedItem ? { ...matchedItem, qty: Math.max(commandItem.quantity || 1, 1) } : null;
-          })
-          .filter((item): item is VoiceDraftItem => Boolean(item));
-
-        if (draftItems.length > 0) {
-          setVoiceDraft(draftItems);
-          setVoiceFeedback(command.message || `${draftItems.length} item${draftItems.length === 1 ? '' : 's'} found.`);
-          setVoiceStage('review');
+        if (command.items?.length || command.itemName) {
+          applyParsedVoiceCommand(command);
           return;
         }
       } catch {
@@ -574,89 +618,81 @@ export function OrderCreationScreen() {
 
     const draftItems = localDraftFromTranscript(text);
     setVoiceDraft(draftItems);
+    setVoiceDraftTableId(localTableFromTranscript(text));
     setVoiceStage('review');
     setVoiceFeedback(draftItems.length > 0 ? `${draftItems.length} item${draftItems.length === 1 ? '' : 's'} found.` : 'No menu items found. Edit the text and parse again.');
   };
 
   const addVoiceDraftToCart = () => {
     voiceDraft.forEach((item) => updateCart(item, item.qty));
+    if (voiceDraftTableId) {
+      setSelectedTableId(voiceDraftTableId);
+    }
     setVoiceStage('idle');
     setVoiceOpen(false);
     setVoiceDraft([]);
+    setVoiceDraftTableId(null);
     setVoiceTranscript('');
     setVoiceFeedback('Voice items added to cart.');
   };
 
-  const startVoiceAgent = () => {
+  const stopVoiceRecording = async () => {
+    try {
+      await audioRecorder.stop();
+      setVoiceListening(false);
+      setVoiceFeedback('Transcribing voice order...');
+
+      const audioUri = audioRecorder.uri;
+
+      if (!audioUri || !currentUser?.token) {
+        setVoiceStage('review');
+        setVoiceFeedback('Recording saved, but transcription needs a logged-in worker and audio file.');
+        return;
+      }
+
+      const command = await transcribeVoiceOrderRequest(currentUser.token, {
+        audioUri,
+        menu: menu.map((item) => ({ name: item.name, category: item.category })),
+        tables: tables.map((table) => ({ id: table.id, label: `${table.id} ${table.meta}` })),
+      });
+
+      applyParsedVoiceCommand(command);
+    } catch (error) {
+      setVoiceListening(false);
+      setVoiceStage('review');
+      setVoiceFeedback(error instanceof Error ? error.message : 'Could not transcribe the recording. Type the order and parse it.');
+    }
+  };
+
+  const startVoiceAgent = async () => {
     setVoiceOpen(true);
     setVoiceStage('recording');
     setVoiceDraft([]);
+    setVoiceDraftTableId(null);
     setVoiceFeedback('Listening...');
 
-    const SpeechRecognition =
-      typeof window !== 'undefined'
-        ? (
-            window as typeof window & {
-              SpeechRecognition?: new () => {
-                continuous: boolean;
-                interimResults: boolean;
-                lang: string;
-                start: () => void;
-                onresult: ((event: { results: { [key: number]: { [key: number]: { transcript: string } } }; resultIndex: number }) => void) | null;
-                onerror: (() => void) | null;
-                onend: (() => void) | null;
-              };
-              webkitSpeechRecognition?: new () => {
-                continuous: boolean;
-                interimResults: boolean;
-                lang: string;
-                start: () => void;
-                onresult: ((event: { results: { [key: number]: { [key: number]: { transcript: string } } }; resultIndex: number }) => void) | null;
-                onerror: (() => void) | null;
-                onend: (() => void) | null;
-              };
-            }
-          ).SpeechRecognition ??
-          (
-            window as typeof window & {
-              webkitSpeechRecognition?: new () => {
-                continuous: boolean;
-                interimResults: boolean;
-                lang: string;
-                start: () => void;
-                onresult: ((event: { results: { [key: number]: { [key: number]: { transcript: string } } }; resultIndex: number }) => void) | null;
-                onerror: (() => void) | null;
-                onend: (() => void) | null;
-              };
-            }
-          ).webkitSpeechRecognition
-        : undefined;
+    try {
+      const permission = await requestRecordingPermissionsAsync();
 
-    if (!SpeechRecognition) {
-      setVoiceListening(false);
-      setTimeout(() => {
+      if (!permission.granted) {
+        setVoiceListening(false);
         setVoiceStage('review');
-        setVoiceFeedback('Voice listening is not available here. Type the order and parse it.');
-      }, 1200);
-      return;
-    }
+        setVoiceFeedback('Microphone permission was denied. Type the order and parse it.');
+        return;
+      }
 
-    const recognition = new SpeechRecognition();
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.lang = 'en-US';
-    recognition.onresult = (event) => {
-      const transcript = event.results[event.resultIndex][0].transcript;
-      setVoiceTranscript(transcript);
-      void reviewVoiceTranscript(transcript);
-    };
-    recognition.onerror = () => {
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+      });
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
+      setVoiceListening(true);
+    } catch (error) {
+      setVoiceListening(false);
       setVoiceStage('review');
-      setVoiceFeedback('I could not hear that. Try again or type the command.');
-    };
-    recognition.onend = () => setVoiceListening(false);
-    setVoiceListening(true);
-    recognition.start();
+      setVoiceFeedback(error instanceof Error ? error.message : 'Voice recording is not available here. Type the order and parse it.');
+    }
   };
 
   const sendOrder = () => {
@@ -688,12 +724,8 @@ export function OrderCreationScreen() {
             <Text style={styles.voiceWaveText}>Voice is being recorded</Text>
             <Pressable
               style={styles.voiceModalSecondary}
-              onPress={() => {
-                setVoiceListening(false);
-                setVoiceStage('review');
-                setVoiceFeedback('Recording stopped. Edit the text if needed.');
-              }}>
-              <Text style={styles.secondaryAuthText}>Stop & Review</Text>
+              onPress={() => void stopVoiceRecording()}>
+              <Text style={styles.secondaryAuthText}>{voiceListening ? 'Stop & Review' : 'Review'}</Text>
             </Pressable>
           </View>
         </View>
@@ -729,6 +761,12 @@ export function OrderCreationScreen() {
               <Text style={styles.secondaryAuthText}>Parse Again</Text>
             </Pressable>
             <View style={styles.voiceDraftList}>
+              {voiceDraftTableId ? (
+                <View style={styles.voiceTableRow}>
+                  <DIcon name="table-restaurant" color={red} size={20} />
+                  <Text style={styles.boldLabel}>{voiceDraftTableId} detected</Text>
+                </View>
+              ) : null}
               {voiceDraft.length > 0 ? (
                 voiceDraft.map((item) => (
                   <View key={item.name} style={styles.voiceDraftRow}>
@@ -758,7 +796,7 @@ export function OrderCreationScreen() {
               )}
             </View>
             <View style={styles.voiceActions}>
-              <Pressable style={styles.voiceSecondaryButton} onPress={startVoiceAgent}>
+              <Pressable style={styles.voiceSecondaryButton} onPress={() => void startVoiceAgent()}>
                 <Text style={styles.secondaryAuthText}>Record Again</Text>
               </Pressable>
               <Pressable
@@ -835,7 +873,7 @@ export function OrderCreationScreen() {
                 <MenuItemCard
                   key={item.name}
                   item={item}
-                  image={menuImages[index]}
+                  image={menuImages[index % menuImages.length]}
                   index={index}
                   quantity={cart[item.name]?.qty ?? 0}
                   onAdd={() => updateCart(item, 1)}
@@ -893,103 +931,10 @@ export function OrderCreationScreen() {
                 </View>
               </View>
             </SoftCard>
-            <Pressable style={[styles.voiceButton, voiceListening && styles.voiceButtonActive]} onPress={startVoiceAgent}>
+            <Pressable style={[styles.voiceButton, voiceListening && styles.voiceButtonActive]} onPress={() => void startVoiceAgent()}>
               <DIcon name={voiceListening ? 'hearing' : 'mic'} color="#ffffff" size={28} />
             </Pressable>
-            <Modal transparent visible={voiceOpen && voiceStage === 'recording'} animationType="fade" onRequestClose={() => setVoiceStage('idle')}>
-              <View style={styles.voiceModalOverlay}>
-                <View style={styles.recordingModal}>
-                  <View style={styles.recordingPulse}>
-                    <DIcon name="mic" color="#ffffff" size={34} />
-                  </View>
-                  <Text style={styles.voiceModalTitle}>Recording Order</Text>
-                  <Text style={styles.voiceModalBody}>Listening for table items...</Text>
-                  <Text style={styles.voiceWaveText}>Voice is being recorded</Text>
-                  <Pressable
-                    style={styles.voiceModalSecondary}
-                    onPress={() => {
-                      setVoiceListening(false);
-                      setVoiceStage('review');
-                      setVoiceFeedback('Recording stopped. Edit the text if needed.');
-                    }}>
-                    <Text style={styles.secondaryAuthText}>Stop & Review</Text>
-                  </Pressable>
-                </View>
-              </View>
-            </Modal>
-            <Modal transparent visible={voiceOpen && voiceStage === 'review'} animationType="slide" onRequestClose={() => setVoiceStage('idle')}>
-              <View style={styles.voiceModalOverlay}>
-                <View style={styles.reviewModal}>
-                  <View style={styles.cardHeader}>
-                    <View>
-                      <Text style={styles.voiceModalTitle}>Review Voice Order</Text>
-                      <Text style={styles.smallLabel}>{voiceFeedback}</Text>
-                    </View>
-                    <Pressable
-                      onPress={() => {
-                        setVoiceOpen(false);
-                        setVoiceStage('idle');
-                      }}
-                      style={styles.closeVoiceButton}>
-                      <DIcon name="close" color={c.textSecondary} size={20} />
-                    </Pressable>
-                  </View>
-                  <View style={styles.voiceInputBox}>
-                    <DIcon name="record-voice-over" color={red} />
-                    <TextInput
-                      value={voiceTranscript}
-                      onChangeText={setVoiceTranscript}
-                      placeholder='Try "two Caprese Salad and one Ribeye Steak"'
-                      placeholderTextColor={c.border}
-                      style={styles.fieldInput}
-                    />
-                  </View>
-                  <Pressable style={styles.voiceModalSecondary} onPress={() => void reviewVoiceTranscript()}>
-                    <Text style={styles.secondaryAuthText}>Parse Again</Text>
-                  </Pressable>
-                  <View style={styles.voiceDraftList}>
-                    {voiceDraft.length > 0 ? (
-                      voiceDraft.map((item) => (
-                        <View key={item.name} style={styles.voiceDraftRow}>
-                          <View style={styles.flexOne}>
-                            <Text style={styles.boldLabel}>{item.name}</Text>
-                            <Text style={styles.smallLabel}>{item.price}</Text>
-                          </View>
-                          <View style={styles.menuQuantityControl}>
-                            <Pressable style={styles.menuQtyButton} onPress={() => setDraftQuantity(item.name, -1)}>
-                              <DIcon name="remove" color={primary} size={18} />
-                            </Pressable>
-                            <Text style={styles.menuQtyText}>{item.qty}</Text>
-                            <Pressable style={styles.menuQtyButtonRed} onPress={() => setDraftQuantity(item.name, 1)}>
-                              <DIcon name="add" color="#ffffff" size={18} />
-                            </Pressable>
-                          </View>
-                          <Pressable style={styles.voiceRemoveButton} onPress={() => removeDraftItem(item.name)}>
-                            <DIcon name="delete-outline" color={c.danger} size={20} />
-                          </Pressable>
-                        </View>
-                      ))
-                    ) : (
-                      <View style={styles.emptyVoiceDraft}>
-                        <Text style={styles.boldLabel}>No items detected</Text>
-                        <Text style={styles.smallLabel}>Edit the text above or record again.</Text>
-                      </View>
-                    )}
-                  </View>
-                  <View style={styles.voiceActions}>
-                    <Pressable style={styles.voiceSecondaryButton} onPress={startVoiceAgent}>
-                      <Text style={styles.secondaryAuthText}>Record Again</Text>
-                    </Pressable>
-                    <Pressable
-                      style={[styles.voiceApplyButton, voiceDraft.length === 0 && styles.disabledButton]}
-                      disabled={voiceDraft.length === 0}
-                      onPress={addVoiceDraftToCart}>
-                      <Text style={styles.primaryButtonText}>Add to Cart</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              </View>
-            </Modal>
+            {voiceModals}
             <Pressable style={[styles.sendButton, cartItems.length === 0 && styles.disabledButton]} disabled={cartItems.length === 0} onPress={sendOrder}>
               <Text style={styles.sendText}>Send to Kitchen</Text>
               <DIcon name="restaurant" color="#ffffff" />
@@ -2323,6 +2268,15 @@ const styles = StyleSheet.create({
   },
   voiceDraftList: {
     gap: 12,
+  },
+  voiceTableRow: {
+    alignItems: 'center',
+    backgroundColor: '#fff1f2',
+    borderRadius: 18,
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
   voiceDraftRow: {
     alignItems: 'center',
