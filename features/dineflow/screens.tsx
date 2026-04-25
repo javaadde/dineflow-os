@@ -2,7 +2,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import { PropsWithChildren, useEffect, useMemo, useState } from 'react';
+import { PropsWithChildren, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Modal,
   Pressable,
@@ -37,7 +37,7 @@ import {
   transcribeVoiceOrderRequest,
 } from '@/utils/api';
 
-const red = '#B00012';
+const red = '#d94624';
 const primary = '#84000a';
 const bg = '#f9f9f9';
 const lowBg = '#f3f3f3';
@@ -109,13 +109,22 @@ function ScreenShell({
 
 function BottomNav({ active }: { active: NavKey }) {
   const user = useAuthStore((state) => state.currentUser);
+  const logout = useAuthStore((state) => state.logout);
   const canAccess = useAuthStore((state) => state.canAccess);
+  const [profileOpen, setProfileOpen] = useState(false);
   const visibleItems = navItems.filter((item) => canAccess(user?.role, item.key));
+
   const openVoiceOrder = () => {
     router.push({
       pathname: '/order',
       params: { voice: String(Date.now()) },
     } as never);
+  };
+
+  const handleLogout = () => {
+    setProfileOpen(false);
+    logout();
+    router.replace('/login' as never);
   };
 
   return (
@@ -128,7 +137,8 @@ function BottomNav({ active }: { active: NavKey }) {
             key={item.key}
             onPress={() => router.push(item.href as never)}
             style={[styles.navItem, selected && styles.navItemActive]}>
-            <DIcon name={item.icon} color={selected ? '#ffffff' : 'rgba(255,255,255,0.7)'} size={25} />
+            <DIcon name={item.icon} color={selected ? '#ffffff' : '#475569'} size={25} />
+            {selected && <Text style={styles.navLabel}>{item.key === 'order' ? 'Home' : item.key.charAt(0).toUpperCase() + item.key.slice(1)}</Text>}
           </Pressable>
         );
       })}
@@ -143,7 +153,80 @@ function BottomNav({ active }: { active: NavKey }) {
           <DIcon name="mic" color="#ffffff" size={25} />
         </Pressable>
       ) : null}
+      <Pressable
+        onPress={() => setProfileOpen(true)}
+        style={[styles.navItem, styles.profileNavItem]}>
+        {user ? (
+          <Image source={{ uri: profile }} style={styles.miniAvatar} contentFit="cover" />
+        ) : (
+          <DIcon name="person-outline" color="#475569" size={25} />
+        )}
+      </Pressable>
+      <ProfileModal
+        visible={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        onLogout={handleLogout}
+        user={user}
+      />
     </View>
+  );
+}
+
+function ProfileModal({
+  visible,
+  onClose,
+  onLogout,
+  user,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onLogout: () => void;
+  user: any;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.profileModalOverlay} onPress={onClose}>
+        <Animated.View entering={FadeInDown.duration(300)} style={styles.profileCard}>
+          <View style={styles.profileHeader}>
+            <View style={styles.profileAvatarContainer}>
+              <Image source={{ uri: profile }} style={styles.largeAvatar} />
+              <Pressable style={styles.editAvatarBadge}>
+                <DIcon name="edit" size={12} color="#ffffff" />
+              </Pressable>
+            </View>
+            <Text style={styles.profileName}>{user?.name || 'Worker'}</Text>
+            <Text style={styles.profileRole}>{user?.role?.toUpperCase() || 'Member'}</Text>
+          </View>
+
+          <View style={styles.profileDetails}>
+            <View style={styles.detailRow}>
+              <DIcon name="email" size={18} color={c.textSecondary} />
+              <Text style={styles.detailText}>{user?.email || 'No email'}</Text>
+            </View>
+            <View style={styles.detailRow}>
+              <DIcon name="business" size={18} color={c.textSecondary} />
+              <Text style={styles.detailText}>ID: {user?.companyId || 'N/A'}</Text>
+            </View>
+          </View>
+
+          <View style={styles.profileActions}>
+            <Pressable style={styles.actionItem} onPress={() => {}}>
+              <DIcon name="image" size={20} color={c.textPrimary} />
+              <Text style={styles.actionText}>Change Image</Text>
+            </Pressable>
+            <Pressable style={styles.actionItem} onPress={() => {}}>
+              <DIcon name="lock-reset" size={20} color={c.textPrimary} />
+              <Text style={styles.actionText}>Reset Password</Text>
+            </Pressable>
+            <View style={styles.actionDivider} />
+            <Pressable style={[styles.actionItem, styles.logoutAction]} onPress={onLogout}>
+              <DIcon name="logout" size={20} color={red} />
+              <Text style={[styles.actionText, styles.logoutText]}>Logout</Text>
+            </Pressable>
+          </View>
+        </Animated.View>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -156,33 +239,25 @@ function TopBar({
   titleColor?: string;
   showBack?: boolean;
 }) {
-  const logout = useAuthStore((state) => state.logout);
-  const user = useAuthStore((state) => state.currentUser);
-
   return (
     <View style={styles.topBar}>
       <View style={styles.topBarLeft}>
         {showBack ? (
-          <Pressable style={styles.backCircle} onPress={() => router.back()}>
+          <Pressable style={styles.backCircle} onPress={() => (router.canGoBack() ? router.back() : router.replace('/waiter' as never))}>
             <DIcon name="arrow-back" color={red} />
           </Pressable>
         ) : (
-          <Image source={{ uri: profile }} style={styles.avatar} contentFit="cover" />
+          <View style={styles.brandMark}>
+            <DIcon name="restaurant" color={red} size={22} />
+          </View>
         )}
         <Text style={[styles.topTitle, { color: titleColor }]}>{title}</Text>
       </View>
       <View style={styles.topRight}>
-        <DIcon name="notifications" color={showBack ? '#94a3b8' : red} />
-        {showBack ? <Image source={{ uri: profile }} style={styles.smallAvatar} contentFit="cover" /> : null}
-        {user ? (
-          <Pressable
-            onPress={() => {
-              logout();
-              router.replace('/login' as never);
-            }}>
-            <DIcon name="logout" color={c.textSecondary} size={22} />
-          </Pressable>
-        ) : null}
+        <Pressable style={styles.notifIcon}>
+          <DIcon name="notifications-none" color={c.textPrimary} size={24} />
+          <View style={styles.notifDot} />
+        </Pressable>
       </View>
     </View>
   );
@@ -377,7 +452,12 @@ export function WaiterDashboardScreen() {
         </ScrollView>
         <View style={styles.cardGrid}>
           {tables.map((table, index) => (
-            <TableCard key={table.id} table={table} index={index} onAction={() => router.push('/order' as never)} />
+            <TableCard
+              key={table.id}
+              table={table}
+              index={index}
+              onAction={() => router.push({ pathname: '/order', params: { tableId: table.id } } as never)}
+            />
           ))}
         </View>
       </ScreenShell>
@@ -423,12 +503,18 @@ function TableCard({ table, index, onAction }: { table: (typeof tables)[number];
 }
 
 const menu = [
-  { category: 'Salads', label: 'APPETIZER', name: 'Caprese Salad', price: '$14.50', amount: 14.5 },
-  { category: 'Seafood', label: 'APPETIZER', name: 'Crispy Calamari', price: '$16.00', amount: 16 },
-  { category: 'Seafood', label: 'APPETIZER', name: 'Garlic Prawns', price: '$18.50', amount: 18.5 },
-  { category: 'Steaks', label: 'MAINS', name: 'Ribeye Steak', price: '$32.00', amount: 32 },
-  { category: 'Drinks', label: 'DRINKS', name: 'Fresh Lime', price: '$6.00', amount: 6 },
-  { category: 'Drinks', label: 'DRINKS', name: 'Pineapple Mojito', price: '$9.00', amount: 9 },
+  { category: 'Burgers', label: 'BURGER', name: 'Cheese Burger', price: '$12.00', amount: 12 },
+  { category: 'Burgers', label: 'BURGER', name: 'Chicken Burger', price: '$11.50', amount: 11.5 },
+  { category: 'Burgers', label: 'BURGER', name: 'Spicy Beef Burger', price: '$13.50', amount: 13.5 },
+  { category: 'Sandwiches', label: 'SANDWICH', name: 'Club Sandwich', price: '$10.00', amount: 10 },
+  { category: 'Sandwiches', label: 'SANDWICH', name: 'Chicken Sandwich', price: '$9.50', amount: 9.5 },
+  { category: 'Sandwiches', label: 'SANDWICH', name: 'Veg Sandwich', price: '$8.00', amount: 8 },
+  { category: 'Sides', label: 'SIDES', name: 'French Fries', price: '$5.00', amount: 5 },
+  { category: 'Sides', label: 'SIDES', name: 'Cheese Fries', price: '$6.50', amount: 6.5 },
+  { category: 'Drinks', label: 'DRINKS', name: 'Fresh Lime', price: '$4.00', amount: 4 },
+  { category: 'Drinks', label: 'DRINKS', name: 'Mint Lime', price: '$4.50', amount: 4.5 },
+  { category: 'Drinks', label: 'DRINKS', name: 'Pineapple Mojito', price: '$6.00', amount: 6 },
+  { category: 'Drinks', label: 'DRINKS', name: 'Orange Mojito', price: '$6.00', amount: 6 },
 ];
 
 type CartItem = (typeof menu)[number] & {
@@ -454,9 +540,30 @@ const numberWords: Record<string, number> = {
   ten: 10,
 };
 
+const voiceAliases: Record<string, string[]> = {
+  'Cheese Burger': ['cheeseburger', 'cheese burgers', 'cheeseburgers'],
+  'Chicken Burger': ['chicken burgers'],
+  'Spicy Beef Burger': ['spicy burger', 'beef burger', 'beef burgers'],
+  'Club Sandwich': ['club sandwiches'],
+  'Chicken Sandwich': ['chicken sandwiches'],
+  'Veg Sandwich': ['veg sandwiches', 'vegetable sandwich', 'vegetable sandwiches'],
+  'French Fries': ['french fry'],
+  'Cheese Fries': ['cheesy fries', 'cheese fry'],
+  'Fresh Lime': ['fresh lime soda', 'fresh limes'],
+  'Mint Lime': ['mint limes'],
+  'Pineapple Mojito': ['pine apple mojito', 'pinaple mojito', 'pineapple mojitos', 'pinapple mojito'],
+  'Orange Mojito': ['orange mojitos'],
+};
+
+const voiceExamples = [
+  'two cheese burgers and one fresh lime to table one',
+  'one club sandwich and two pineapple mojito to table twelve',
+  'two french fries and one chicken burger to table five',
+];
+
 export function OrderCreationScreen() {
-  const params = useLocalSearchParams<{ voice?: string }>();
-  const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
+  const params = useLocalSearchParams<{ voice?: string; tableId?: string }>();
+  const [selectedTableId, setSelectedTableId] = useState<string | null>(params.tableId || null);
   const [cart, setCart] = useState<Record<string, CartItem>>({});
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [voiceListening, setVoiceListening] = useState(false);
@@ -466,6 +573,8 @@ export function OrderCreationScreen() {
   const [voiceDraft, setVoiceDraft] = useState<VoiceDraftItem[]>([]);
   const [voiceDraftTableId, setVoiceDraftTableId] = useState<string | null>(null);
   const [lastVoiceParam, setLastVoiceParam] = useState<string | null>(null);
+  const voiceTranscriptRef = useRef('');
+  const browserSpeechRef = useRef<{ stop: () => void } | null>(null);
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const selectedTable = tables.find((table) => table.id === selectedTableId);
   const currentUser = useAuthStore((state) => state.currentUser);
@@ -511,6 +620,69 @@ export function OrderCreationScreen() {
     setVoiceDraft((current) => current.filter((item) => item.name !== itemName));
   };
 
+  const updateVoiceTranscript = (value: string) => {
+    voiceTranscriptRef.current = value;
+    setVoiceTranscript(value);
+  };
+
+  const normalizeVoiceText = (value: string) =>
+    value
+      .toLowerCase()
+      .replace(/pinapple|pinaple|pine apple/g, 'pineapple')
+      .replace(/chesse/g, 'cheese')
+      .replace(/burgar/g, 'burger')
+      .replace(/mojitoes/g, 'mojitos')
+      .replace(/[^a-z0-9\s-]/g, ' ')
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((word) => (word.length > 3 && word.endsWith('s') ? word.slice(0, -1) : word))
+      .join(' ');
+
+  const voiceNamesForItem = (itemName: string) => [itemName, ...(voiceAliases[itemName] ?? [])].map(normalizeVoiceText);
+
+  const containsVoicePhrase = (text: string, phrase: string) => new RegExp(`(^|\\s)${phrase.replace(/\s+/g, '\\s+')}(\\s|$)`).test(text);
+
+  const findMenuItemByVoiceName = (itemName?: string | null) => {
+    if (!itemName) {
+      return null;
+    }
+
+    const normalizedName = normalizeVoiceText(itemName);
+
+    return (
+      menu
+        .map((item) => ({
+          item,
+          matchedName: voiceNamesForItem(item.name)
+            .sort((a, b) => b.length - a.length)
+            .find((name) => name === normalizedName || containsVoicePhrase(normalizedName, name)),
+        }))
+        .filter((match): match is { item: (typeof menu)[number]; matchedName: string } => Boolean(match.matchedName))
+        .sort((a, b) => b.matchedName.length - a.matchedName.length)[0]?.item ?? null
+    );
+  };
+
+  const normalizeTableId = (tableId?: string | null) => {
+    if (!tableId) {
+      return null;
+    }
+
+    const direct = tables.find((table) => table.id.toLowerCase() === tableId.toLowerCase());
+
+    if (direct) {
+      return direct.id;
+    }
+
+    const tableNumber = tableId.match(/\d+/)?.[0];
+
+    if (!tableNumber) {
+      return null;
+    }
+
+    const normalized = `T-${String(Number(tableNumber)).padStart(2, '0')}`;
+    return tables.some((table) => table.id === normalized) ? normalized : null;
+  };
+
   const applyParsedVoiceCommand = (command: {
     transcript?: string;
     tableId?: string | null;
@@ -523,20 +695,20 @@ export function OrderCreationScreen() {
       ? command.items
       : command.itemName
         ? [{ itemName: command.itemName, quantity: command.quantity ?? 1 }]
-        : [];
+      : [];
     const draftItems = commandItems
       .map((commandItem) => {
-        const matchedItem = menu.find((item) => item.name === commandItem.itemName);
+        const matchedItem = findMenuItemByVoiceName(commandItem.itemName);
         return matchedItem ? { ...matchedItem, qty: Math.max(commandItem.quantity || 1, 1) } : null;
       })
       .filter((item): item is VoiceDraftItem => Boolean(item));
 
     if (command.transcript) {
-      setVoiceTranscript(command.transcript);
+      updateVoiceTranscript(command.transcript);
     }
 
     setVoiceDraft(draftItems);
-    setVoiceDraftTableId(command.tableId ?? null);
+    setVoiceDraftTableId(normalizeTableId(command.tableId));
     setVoiceStage('review');
     setVoiceFeedback(
       command.message ||
@@ -571,16 +743,25 @@ export function OrderCreationScreen() {
       return [];
     }
 
-    const matchedItems = menu.filter((item) => text.includes(item.name.toLowerCase()));
+    const normalizedText = normalizeVoiceText(text);
+    const matchedItems = menu
+      .map((item) => ({
+        item,
+        matchedName: voiceNamesForItem(item.name)
+          .sort((a, b) => b.length - a.length)
+          .find((name) => containsVoicePhrase(normalizedText, name)),
+      }))
+      .filter((match): match is { item: (typeof menu)[number]; matchedName: string } => Boolean(match.matchedName))
+      .sort((a, b) => normalizedText.indexOf(a.matchedName) - normalizedText.indexOf(b.matchedName));
 
     if (matchedItems.length === 0) {
-      setVoiceFeedback('I could not match that to a menu item.');
+      setVoiceFeedback(`Could not match "${spokenText}" to a menu item.`);
       return [];
     }
 
-    return matchedItems.map((item) => {
-      const itemIndex = text.indexOf(item.name.toLowerCase());
-      const beforeItem = text.slice(Math.max(0, itemIndex - 32), itemIndex);
+    return matchedItems.map(({ item, matchedName }) => {
+      const itemIndex = normalizedText.indexOf(matchedName);
+      const beforeItem = normalizedText.slice(Math.max(0, itemIndex - 32), itemIndex);
       const quantityMatch = beforeItem.match(/\b\d+\b/g);
       const wordQuantity = Object.entries(numberWords)
         .reverse()
@@ -605,6 +786,7 @@ export function OrderCreationScreen() {
         const command = await parseVoiceOrderCommandRequest(currentUser.token, {
           transcript: text,
           menu: menu.map((item) => ({ name: item.name, category: item.category })),
+          tables: tables.map((table) => ({ id: table.id, label: `${table.id} ${table.meta}` })),
         });
 
         if (command.items?.length || command.itemName) {
@@ -632,19 +814,31 @@ export function OrderCreationScreen() {
     setVoiceOpen(false);
     setVoiceDraft([]);
     setVoiceDraftTableId(null);
-    setVoiceTranscript('');
+    updateVoiceTranscript('');
     setVoiceFeedback('Voice items added to cart.');
   };
 
   const stopVoiceRecording = async () => {
     try {
-      await audioRecorder.stop();
+      const fallbackTranscript = voiceTranscriptRef.current.trim();
+
+      browserSpeechRef.current?.stop();
+      browserSpeechRef.current = null;
+
+      if (voiceListening) {
+        await audioRecorder.stop();
+      }
       setVoiceListening(false);
       setVoiceFeedback('Transcribing voice order...');
 
       const audioUri = audioRecorder.uri;
 
       if (!audioUri || !currentUser?.token) {
+        if (fallbackTranscript) {
+          await reviewVoiceTranscript(fallbackTranscript);
+          return;
+        }
+
         setVoiceStage('review');
         setVoiceFeedback('Recording saved, but transcription needs a logged-in worker and audio file.');
         return;
@@ -656,12 +850,112 @@ export function OrderCreationScreen() {
         tables: tables.map((table) => ({ id: table.id, label: `${table.id} ${table.meta}` })),
       });
 
-      applyParsedVoiceCommand(command);
+      if (command.items?.length || command.itemName) {
+        applyParsedVoiceCommand(command);
+        return;
+      }
+
+      await reviewVoiceTranscript(command.transcript || fallbackTranscript);
     } catch (error) {
+      const fallbackTranscript = voiceTranscriptRef.current.trim();
+
       setVoiceListening(false);
+      if (fallbackTranscript) {
+        await reviewVoiceTranscript(fallbackTranscript);
+        return;
+      }
+
       setVoiceStage('review');
       setVoiceFeedback(error instanceof Error ? error.message : 'Could not transcribe the recording. Type the order and parse it.');
     }
+  };
+
+  const startBrowserSpeechFallback = (parseOnResult = true) => {
+    const SpeechRecognition =
+      typeof window !== 'undefined'
+        ? (
+            window as typeof window & {
+              SpeechRecognition?: new () => {
+                continuous: boolean;
+                interimResults: boolean;
+                lang: string;
+                start: () => void;
+                stop: () => void;
+                onresult: ((event: { results: { [key: number]: { [key: number]: { transcript: string } } }; resultIndex: number }) => void) | null;
+                onerror: (() => void) | null;
+                onend: (() => void) | null;
+              };
+              webkitSpeechRecognition?: new () => {
+                continuous: boolean;
+                interimResults: boolean;
+                lang: string;
+                start: () => void;
+                stop: () => void;
+                onresult: ((event: { results: { [key: number]: { [key: number]: { transcript: string } } }; resultIndex: number }) => void) | null;
+                onerror: (() => void) | null;
+                onend: (() => void) | null;
+              };
+            }
+          ).SpeechRecognition ??
+          (
+            window as typeof window & {
+              webkitSpeechRecognition?: new () => {
+                continuous: boolean;
+                interimResults: boolean;
+                lang: string;
+                start: () => void;
+                stop: () => void;
+                onresult: ((event: { results: { [key: number]: { [key: number]: { transcript: string } } }; resultIndex: number }) => void) | null;
+                onerror: (() => void) | null;
+                onend: (() => void) | null;
+              };
+            }
+          ).webkitSpeechRecognition
+        : undefined;
+
+    if (!SpeechRecognition) {
+      setVoiceListening(false);
+      setVoiceStage('review');
+      setVoiceFeedback('Voice recording is not available here. Type the order and parse it.');
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-IN';
+    recognition.onresult = (event) => {
+      const transcript = event.results[event.resultIndex][0].transcript;
+
+      if (parseOnResult) {
+        updateVoiceTranscript(transcript);
+        setVoiceListening(false);
+        void reviewVoiceTranscript(transcript);
+      } else {
+        voiceTranscriptRef.current = transcript;
+        setVoiceFeedback('Audio is recording in English. Tap Stop & Review when finished.');
+      }
+    };
+    recognition.onerror = () => {
+      if (parseOnResult) {
+        setVoiceListening(false);
+        setVoiceStage('review');
+        setVoiceFeedback('I could not hear that. Type the order and parse it.');
+      }
+    };
+    recognition.onend = () => {
+      if (browserSpeechRef.current === recognition) {
+        browserSpeechRef.current = null;
+      }
+
+      if (parseOnResult) {
+        setVoiceListening(false);
+      }
+    };
+    browserSpeechRef.current = recognition;
+    setVoiceListening(true);
+    setVoiceFeedback(parseOnResult ? 'Listening with browser speech...' : 'Recording audio and listening for speech...');
+    recognition.start();
   };
 
   const startVoiceAgent = async () => {
@@ -688,10 +982,10 @@ export function OrderCreationScreen() {
       await audioRecorder.prepareToRecordAsync();
       audioRecorder.record();
       setVoiceListening(true);
+      startBrowserSpeechFallback(false);
     } catch (error) {
-      setVoiceListening(false);
-      setVoiceStage('review');
-      setVoiceFeedback(error instanceof Error ? error.message : 'Voice recording is not available here. Type the order and parse it.');
+      setVoiceFeedback(error instanceof Error ? `Recorder unavailable: ${error.message}` : 'Recorder unavailable. Trying browser speech.');
+      startBrowserSpeechFallback();
     }
   };
 
@@ -751,8 +1045,10 @@ export function OrderCreationScreen() {
               <DIcon name="record-voice-over" color={red} />
               <TextInput
                 value={voiceTranscript}
-                onChangeText={setVoiceTranscript}
-                placeholder='Try "two Caprese Salad and one Ribeye Steak"'
+                onChangeText={updateVoiceTranscript}
+                autoCapitalize="none"
+                multiline
+                placeholder='Try "two cheese burgers and one fresh lime to table one"'
                 placeholderTextColor={c.border}
                 style={styles.fieldInput}
               />
@@ -760,6 +1056,19 @@ export function OrderCreationScreen() {
             <Pressable style={styles.voiceModalSecondary} onPress={() => void reviewVoiceTranscript()}>
               <Text style={styles.secondaryAuthText}>Parse Again</Text>
             </Pressable>
+            <View style={styles.voiceSuggestions}>
+              {voiceExamples.map((example) => (
+                <Pressable
+                  key={example}
+                  style={styles.voiceSuggestionChip}
+                  onPress={() => {
+                    updateVoiceTranscript(example);
+                    void reviewVoiceTranscript(example);
+                  }}>
+                  <Text style={styles.smallLabel}>{example}</Text>
+                </Pressable>
+              ))}
+            </View>
             <View style={styles.voiceDraftList}>
               {voiceDraftTableId ? (
                 <View style={styles.voiceTableRow}>
@@ -1605,13 +1914,11 @@ const styles = StyleSheet.create({
   },
   topBar: {
     alignItems: 'center',
-    backgroundColor: '#f8fafc',
+    backgroundColor: 'transparent',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginHorizontal: -24,
-    marginTop: -12,
-    paddingHorizontal: 24,
-    paddingVertical: 16,
+    paddingBottom: 16,
+    paddingTop: 12,
   },
   topBarLeft: {
     alignItems: 'center',
@@ -1863,36 +2170,178 @@ const styles = StyleSheet.create({
   bottomNav: {
     alignItems: 'center',
     alignSelf: 'center',
-    backgroundColor: red,
-    borderRadius: r.pill,
-    bottom: 28,
+    backgroundColor: '#ffffff',
+    borderRadius: 32,
+    bottom: 32,
     flexDirection: 'row',
-    gap: 16,
-    justifyContent: 'center',
-    minWidth: 280,
-    paddingHorizontal: 24,
+    gap: 8,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
     paddingVertical: 12,
     position: 'absolute',
-    zIndex: 50,
-    ...DineFlowShadows.nav,
-    elevation: 24,
+    width: '90%',
+    ...DineFlowShadows.level2,
   },
   navItem: {
     alignItems: 'center',
-    borderRadius: r.pill,
+    borderRadius: 24,
+    flexDirection: 'row',
+    gap: 8,
     justifyContent: 'center',
-    minHeight: 48,
-    minWidth: 48,
-    padding: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
   navItemActive: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    transform: [{ scale: 1.1 }],
+    backgroundColor: '#1a1614',
+  },
+  navLabel: {
+    ...font,
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   navVoiceItem: {
-    backgroundColor: 'rgba(255,255,255,0.22)',
-    borderColor: 'rgba(255,255,255,0.28)',
-    borderWidth: 1,
+    backgroundColor: red,
+    borderRadius: 24,
+    height: 48,
+    width: 48,
+  },
+  profileNavItem: {
+    paddingHorizontal: 8,
+  },
+  miniAvatar: {
+    borderRadius: 15,
+    height: 30,
+    width: 30,
+  },
+  brandMark: {
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    height: 40,
+    justifyContent: 'center',
+    width: 40,
+    ...DineFlowShadows.level1,
+  },
+  notifIcon: {
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    height: 40,
+    justifyContent: 'center',
+    position: 'relative',
+    width: 40,
+    ...DineFlowShadows.level1,
+  },
+  notifDot: {
+    backgroundColor: red,
+    borderColor: '#ffffff',
+    borderRadius: 4,
+    borderWidth: 2,
+    height: 8,
+    position: 'absolute',
+    right: 10,
+    top: 10,
+    width: 8,
+  },
+  profileModalOverlay: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    flex: 1,
+    justifyContent: 'center',
+  },
+  profileCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 32,
+    padding: 24,
+    width: '85%',
+    ...DineFlowShadows.level2,
+  },
+  profileHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  profileAvatarContainer: {
+    position: 'relative',
+    marginBottom: 16,
+  },
+  largeAvatar: {
+    borderColor: '#f1f5f9',
+    borderRadius: 50,
+    borderWidth: 4,
+    height: 100,
+    width: 100,
+  },
+  editAvatarBadge: {
+    backgroundColor: red,
+    borderColor: '#ffffff',
+    borderRadius: 14,
+    borderWidth: 2,
+    bottom: 0,
+    height: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'absolute',
+    right: 0,
+    width: 28,
+  },
+  profileName: {
+    ...font,
+    color: c.textPrimary,
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  profileRole: {
+    ...font,
+    color: red,
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1,
+    marginTop: 4,
+  },
+  profileDetails: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 20,
+    gap: 12,
+    padding: 16,
+    marginBottom: 24,
+  },
+  detailRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 12,
+  },
+  detailText: {
+    ...font,
+    color: c.textSecondary,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  profileActions: {
+    gap: 4,
+  },
+  actionItem: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 12,
+    paddingVertical: 12,
+  },
+  actionText: {
+    ...font,
+    color: c.textPrimary,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  actionDivider: {
+    backgroundColor: '#f1f5f9',
+    height: 1,
+    marginVertical: 8,
+  },
+  logoutAction: {
+    marginTop: 4,
+  },
+  logoutText: {
+    color: red,
   },
   orderScroll: {
     paddingBottom: 176,
@@ -2477,7 +2926,7 @@ const styles = StyleSheet.create({
   },
   sparkIcon: {
     alignItems: 'center',
-    backgroundColor: 'rgba(176,0,18,0.1)',
+    backgroundColor: 'rgba(217,70,36,0.1)',
     borderRadius: 20,
     height: 40,
     justifyContent: 'center',

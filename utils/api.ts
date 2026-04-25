@@ -98,6 +98,7 @@ export function parseVoiceOrderCommandRequest(
   input: {
     transcript: string;
     menu: { name: string; category: string }[];
+    tables?: { id: string; label: string }[];
   },
 ) {
   return request<VoiceOrderCommand>('/api/voice/order-command', {
@@ -109,7 +110,7 @@ export function parseVoiceOrderCommandRequest(
   });
 }
 
-export function transcribeVoiceOrderRequest(
+export async function transcribeVoiceOrderRequest(
   token: string,
   input: {
     audioUri: string;
@@ -119,29 +120,34 @@ export function transcribeVoiceOrderRequest(
 ) {
   const form = new FormData();
 
-  form.append('audio', {
-    uri: input.audioUri,
-    name: 'voice-order.m4a',
-    type: 'audio/mp4',
-  } as unknown as Blob);
+  if (input.audioUri.startsWith('blob:') || input.audioUri.startsWith('data:')) {
+    const audioBlob = await fetch(input.audioUri).then((response) => response.blob());
+    form.append('audio', audioBlob, 'voice-order.webm');
+  } else {
+    form.append('audio', {
+      uri: input.audioUri,
+      name: 'voice-order.m4a',
+      type: 'audio/mp4',
+    } as unknown as Blob);
+  }
+
   form.append('menu', JSON.stringify(input.menu));
   form.append('tables', JSON.stringify(input.tables));
 
-  return fetch(`${API_BASE_URL}/api/voice/transcribe-order`, {
+  const response = await fetch(`${API_BASE_URL}/api/voice/transcribe-order`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
     },
     body: form,
-  }).then(async (response) => {
-    const body = (await response.json().catch(() => ({}))) as ApiErrorBody;
-
-    if (!response.ok) {
-      throw new Error(body.message ?? 'Voice transcription failed');
-    }
-
-    return body as VoiceOrderCommand & { transcript: string };
   });
+  const body = (await response.json().catch(() => ({}))) as ApiErrorBody;
+
+  if (!response.ok) {
+    throw new Error(body.message ?? 'Voice transcription failed');
+  }
+
+  return body as VoiceOrderCommand & { transcript: string };
 }
 
 export function getApiBaseUrl() {

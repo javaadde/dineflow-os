@@ -74,7 +74,7 @@ async function parseCommandWithOpenAI({ transcript, menu, tables }) {
         {
           role: 'system',
           content:
-            'You parse restaurant voice order commands. Return only JSON with intent add, remove, clear, send, or unknown; tableId must exactly match an available table when the speaker mentions a table; items is an array of every ordered menu item with exact itemName and positive integer quantity; itemName is the first item for backward compatibility; quantity is the first item quantity; message is a short waiter-facing confirmation.',
+            'You parse noisy restaurant voice order commands. Correct common transcription mistakes and plurals, such as pinaple/pine apple to Pineapple, burgers to Burger, and fries/fry. Return only JSON with intent add, remove, clear, send, or unknown; tableId must exactly match an available table when the speaker mentions a table; items is an array of every ordered menu item with exact itemName and positive integer quantity; itemName is the first item for backward compatibility; quantity is the first item quantity; message is a short waiter-facing confirmation.',
         },
         {
           role: 'user',
@@ -147,6 +147,8 @@ async function transcribeAudio(file) {
 
   form.append('file', blob, file.originalname || 'voice-order.m4a');
   form.append('model', process.env.OPENAI_TRANSCRIPTION_MODEL || 'gpt-4o-mini-transcribe');
+  form.append('language', 'en');
+  form.append('prompt', 'Restaurant order in English. Menu includes burgers, sandwiches, fries, fresh lime, mint lime, pineapple mojito, and orange mojito.');
 
   const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
     method: 'POST',
