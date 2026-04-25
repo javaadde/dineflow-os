@@ -1,7 +1,8 @@
-import { Pressable, StyleSheet, Text, ViewStyle } from 'react-native';
+import { ActivityIndicator, Pressable, StyleProp, StyleSheet, Text, ViewStyle } from 'react-native';
 
 import {
   DineFlowColors,
+  DineFlowFontFamily,
   DineFlowRadius,
   DineFlowSpacing,
   DineFlowTypography,
@@ -15,6 +16,8 @@ type ButtonProps = {
   variant?: ButtonVariant;
   disabled?: boolean;
   fullWidth?: boolean;
+  loading?: boolean;
+  style?: StyleProp<ViewStyle>;
 };
 
 export function Button({
@@ -23,29 +26,37 @@ export function Button({
   variant = 'primary',
   disabled = false,
   fullWidth = false,
+  loading = false,
+  style,
 }: ButtonProps) {
+  const isDisabled = disabled || loading;
+  const labelStyle = variant === 'primary' ? styles.primaryLabel : styles.secondaryLabel;
+
   return (
     <Pressable
       onPress={onPress}
-      disabled={disabled}
+      disabled={isDisabled}
       style={({ pressed }) => [
         styles.base,
         variant === 'primary' ? styles.primary : styles.secondary,
-        pressed && !disabled && (variant === 'primary' ? styles.primaryPressed : styles.secondaryPressed),
-        disabled && styles.disabled,
+        pressed && !isDisabled && (variant === 'primary' ? styles.primaryPressed : styles.secondaryPressed),
+        isDisabled && styles.disabled,
         fullWidth && styles.fullWidth,
+        style,
       ]}>
-      <Text style={[styles.label, variant === 'primary' ? styles.primaryLabel : styles.secondaryLabel]}>
-        {label}
-      </Text>
+      {loading ? (
+        <ActivityIndicator color={variant === 'primary' ? DineFlowColors.surface : DineFlowColors.primary} />
+      ) : (
+        <Text style={[styles.label, labelStyle]}>{label}</Text>
+      )}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   base: {
-    minHeight: 48,
-    paddingHorizontal: DineFlowSpacing.xl,
+    minHeight: DineFlowSpacing.touchTarget,
+    paddingHorizontal: DineFlowSpacing.md,
     borderRadius: DineFlowRadius.pill,
     alignItems: 'center',
     justifyContent: 'center',
@@ -61,23 +72,23 @@ const styles = StyleSheet.create({
   },
   secondary: {
     backgroundColor: DineFlowColors.surface,
-    borderWidth: 1,
-    borderColor: DineFlowColors.border,
+    borderWidth: 2,
+    borderColor: DineFlowColors.secondaryContainer,
   },
   secondaryPressed: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: DineFlowColors.primarySoft,
   },
   disabled: {
     opacity: 0.5,
   },
   label: {
-    fontSize: DineFlowTypography.button,
-    fontWeight: '600',
+    ...DineFlowTypography.label,
+    fontFamily: DineFlowFontFamily,
   },
   primaryLabel: {
     color: DineFlowColors.surface,
   },
   secondaryLabel: {
-    color: DineFlowColors.textPrimary,
+    color: DineFlowColors.primary,
   },
 });

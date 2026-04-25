@@ -1,21 +1,25 @@
 import { PropsWithChildren } from 'react';
 import { StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 
-import { DineFlowColors, DineFlowRadius, DineFlowShadow, DineFlowSpacing } from '@/constants/theme';
+import { DineFlowColors, DineFlowRadius, DineFlowShadows, DineFlowSpacing } from '@/constants/theme';
 
 type CardProps = PropsWithChildren<{
   style?: StyleProp<ViewStyle>;
+  padded?: boolean;
 }>;
 
-export function Card({ children, style }: CardProps) {
-  return <View style={[styles.card, style]}>{children}</View>;
+export function Card({ children, style, padded = true }: CardProps) {
+  return <View style={[styles.card, !padded && styles.flush, style]}>{children}</View>;
 }
 
 const styles = StyleSheet.create({
   card: {
     backgroundColor: DineFlowColors.surface,
-    borderRadius: DineFlowRadius.md,
-    padding: DineFlowSpacing.lg,
-    ...DineFlowShadow,
+    borderRadius: DineFlowRadius.xl,
+    padding: DineFlowSpacing.md,
+    ...DineFlowShadows.level1,
+  },
+  flush: {
+    padding: 0,
   },
 });

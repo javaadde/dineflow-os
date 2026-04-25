@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>DineFlow OS - Waiter Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "error-container": "#ffdad6",
+                        "outline-variant": "#e5bdb9",
+                        "inverse-surface": "#2f3131",
+                        "error": "#ba1a1a",
+                        "on-secondary-container": "#741623",
+                        "primary": "#84000a",
+                        "primary-fixed": "#ffdad6",
+                        "surface-container-high": "#e8e8e8",
+                        "primary-container": "#b00012",
+                        "on-error-container": "#93000a",
+                        "on-tertiary-fixed": "#340f15",
+                        "primary-fixed-dim": "#ffb4ac",
+                        "on-error": "#ffffff",
+                        "surface-container-highest": "#e2e2e2",
+                        "surface-bright": "#f9f9f9",
+                        "on-background": "#1a1c1c",
+                        "inverse-primary": "#ffb4ac",
+                        "tertiary-fixed-dim": "#f8b5bb",
+                        "secondary-fixed-dim": "#ffb3b5",
+                        "background": "#f9f9f9",
+                        "surface-container-low": "#f3f3f3",
+                        "on-secondary-fixed-variant": "#84222e",
+                        "surface": "#f9f9f9",
+                        "secondary": "#a43a43",
+                        "on-primary": "#ffffff",
+                        "tertiary": "#5f3137",
+                        "on-secondary-fixed": "#40000b",
+                        "on-primary-fixed": "#410002",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-lowest": "#ffffff",
+                        "on-secondary": "#ffffff",
+                        "on-surface-variant": "#5c403d",
+                        "on-primary-fixed-variant": "#93000d",
+                        "secondary-container": "#fe7f86",
+                        "on-surface": "#1a1c1c",
+                        "tertiary-container": "#7a484e",
+                        "inverse-on-surface": "#f1f1f1",
+                        "surface-container": "#eeeeee",
+                        "surface-tint": "#bd111a",
+                        "outline": "#906f6b",
+                        "on-tertiary-fixed-variant": "#68393f",
+                        "surface-dim": "#dadada",
+                        "on-tertiary-container": "#febac1",
+                        "on-primary-container": "#ffbbb3",
+                        "secondary-fixed": "#ffdada",
+                        "tertiary-fixed": "#ffd9dc",
+                        "surface-variant": "#e2e2e2"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "xs": "4px",
+                        "base": "8px",
+                        "touch-target": "56px",
+                        "lg": "32px",
+                        "xl": "48px",
+                        "sm": "12px",
+                        "md": "24px"
+                    },
+                    "fontFamily": {
+                        "label-bold": ["Plus Jakarta Sans"],
+                        "label-sm": ["Plus Jakarta Sans"],
+                        "body-lg": ["Plus Jakarta Sans"],
+                        "display-lg": ["Plus Jakarta Sans"],
+                        "headline-md": ["Plus Jakarta Sans"],
+                        "body-md": ["Plus Jakarta Sans"]
+                    },
+                    "fontSize": {
+                        "label-bold": ["14px", {"lineHeight": "20px", "fontWeight": "700"}],
+                        "label-sm": ["13px", {"lineHeight": "18px", "fontWeight": "500"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "display-lg": ["40px", {"lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .squishy {
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .squishy:active {
+            transform: scale(0.92);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface font-body-md min-h-screen pb-32">
+<!-- TopAppBar -->
+<header class="bg-slate-50 dark:bg-slate-950 flex justify-between items-center w-full px-6 py-4 fixed top-0 z-40">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-container">
+<img alt="Staff profile photo" class="w-full h-full object-cover" data-alt="Professional chef portrait in white uniform with a friendly expression in a modern kitchen setting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBCKc9gszxvUbfeo5A2g0ul8rrdmi2zooh6OHrQ-HbB1ofZED0mXB5tw7UDPEYjHcf9RH3sOKDGouJXjYm04iy_HmrYJHpPbhnPprRxALuIS76NtTR1-US8G5FkfOcOnq9rAGqqgJzKfpWEPIcIFFQWi0j0aQyJ1OuViEvFQBl4DT53Fo4HI7NI1HxSy4JtAVcMmK4U92LT17Z4jd3ZzOqDmLz1jlRxGJLif9Y2o3FrfbKPpQ1to3eeFpa-GCOH_304jOWnFmuy0k4"/>
+</div>
+<span class="font-['Plus_Jakarta_Sans'] font-semibold text-lg text-[#B00012] dark:text-red-500">Welcome back, Chef</span>
+</div>
+<button class="w-touch-target h-touch-target flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-200 ease-in-out">
+<span class="material-symbols-outlined text-on-surface-variant">notifications</span>
+</button>
+</header>
+<main class="pt-24 px-6 max-w-7xl mx-auto">
+<!-- Title & Search Section -->
+<div class="mb-lg">
+<h1 class="font-display-lg text-display-lg text-on-surface mb-md">Manage Your Tables</h1>
+<div class="flex gap-4 items-center">
+<div class="relative flex-grow">
+<span class="material-symbols-outlined absolute left-5 top-1/2 -translate-y-1/2 text-outline">search</span>
+<input class="w-full h-touch-target pl-14 pr-6 rounded-full bg-surface-container-lowest border-none shadow-[0_8px_24px_rgba(0,0,0,0.04)] focus:ring-2 focus:ring-primary-container placeholder:text-outline-variant font-body-md" placeholder="Search tables or servers..." type="text"/>
+</div>
+<button class="w-touch-target h-touch-target rounded-full bg-primary-container text-white flex items-center justify-center shadow-lg squishy">
+<span class="material-symbols-outlined">tune</span>
+</button>
+</div>
+</div>
+<!-- Filter Chips -->
+<div class="flex gap-3 overflow-x-auto pb-4 no-scrollbar mb-lg">
+<button class="px-6 h-10 rounded-full bg-primary-container text-white font-label-bold flex-shrink-0 squishy">All</button>
+<button class="px-6 h-10 rounded-full bg-surface-container-high text-on-surface-variant font-label-bold flex-shrink-0 hover:bg-surface-container-highest transition-colors squishy">Free</button>
+<button class="px-6 h-10 rounded-full bg-surface-container-high text-on-surface-variant font-label-bold flex-shrink-0 hover:bg-surface-container-highest transition-colors squishy">Active</button>
+<button class="px-6 h-10 rounded-full bg-surface-container-high text-on-surface-variant font-label-bold flex-shrink-0 hover:bg-surface-container-highest transition-colors squishy">Waiting</button>
+<button class="px-6 h-10 rounded-full bg-surface-container-high text-on-surface-variant font-label-bold flex-shrink-0 hover:bg-surface-container-highest transition-colors squishy">Delayed</button>
+</div>
+<!-- Table Grid (Bento Style) -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-md">
+<!-- Table Card: Active -->
+<div class="bg-surface-container-lowest p-md rounded-[24px] shadow-[0_8px_32px_rgba(0,0,0,0.04)] border border-surface-container hover:shadow-[0_16px_48px_rgba(0,0,0,0.08)] transition-all group">
+<div class="flex justify-between items-start mb-lg">
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface">T-12</h3>
+<p class="font-label-sm text-outline">Window Side • 4 Seats</p>
+</div>
+<span class="px-3 py-1 rounded-full bg-secondary-fixed text-on-secondary-fixed-variant font-label-bold text-xs uppercase tracking-wider">Active</span>
+</div>
+<div class="flex items-center gap-md mb-lg">
+<div class="flex -space-x-2">
+<img alt="Customer" class="w-8 h-8 rounded-full border-2 border-white" data-alt="Close up portrait of a customer smiling" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBM82Eyh8RhjtcZMZJPxe_bItafzLf3FS7HCfQGsHeuNKLW3vfgkqYOvNAE6I6Osebf0ZJyggi4NPIo9J8LwUJUZPVDmHUD29QL43fhjK6J1s_DDZoNbwCOxQfQ70yu0JMCb98xWERSm6LA2HyRlT66thpzKs3Gl6HUxv23OTlImx33ePd0cwv7B9QOPCI19pH4JALofTzuLtwN_jQwQtVDKqMXeuBAxYtpfqa3yHa0xXkdlI-lbnzA2mfyxHZDazE2lPFOpC7m7VI"/>
+<img alt="Customer" class="w-8 h-8 rounded-full border-2 border-white" data-alt="Portrait of a young man dining" src="https://lh3.googleusercontent.com/aida-public/AB6AXuASOBM6eJ5XYB3rkOy69DkMLSTDQl04ZmkCPnRq9RrVsiexRlE1iUuv2t3QzFy_7KJvip_1JEndbqwx2b53akr5HbdOopLwWcSSFJDVJ0wgFmKcpC0KuyYycAFURcnuWrksqz-Wm6XaWVF1zWBwIekaw_TnNMJPq_oyU5lhtSU57tvT2Hi5KUQKVaN1a5QP3V7TIWvI-8QYUWRf3CLvbmj34SV_XZi7JCiaWa_jNmKDHSjH8XwynG9DHgPN789QjeKH8eXa7M75_eA"/>
+<div class="w-8 h-8 rounded-full border-2 border-white bg-surface-container-highest flex items-center justify-center text-[10px] font-bold">+1</div>
+</div>
+<div class="flex flex-col">
+<span class="font-label-bold text-on-surface">3 Orders</span>
+<span class="font-label-sm text-secondary">Main Course Prep</span>
+</div>
+</div>
+<button class="w-full h-touch-target rounded-full bg-primary-container text-white font-label-bold flex items-center justify-center gap-2 squishy shadow-md group-hover:bg-primary transition-colors">
+<span class="material-symbols-outlined text-lg">add_circle</span>
+                    New Order
+                </button>
+</div>
+<!-- Table Card: Free -->
+<div class="bg-surface-container-lowest p-md rounded-[24px] shadow-[0_8px_32px_rgba(0,0,0,0.04)] border border-surface-container hover:shadow-[0_16px_48px_rgba(0,0,0,0.08)] transition-all">
+<div class="flex justify-between items-start mb-lg">
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface">T-05</h3>
+<p class="font-label-sm text-outline">Terrace • 2 Seats</p>
+</div>
+<span class="px-3 py-1 rounded-full bg-surface-container-high text-on-surface-variant font-label-bold text-xs uppercase tracking-wider">Free</span>
+</div>
+<div class="h-8 mb-lg flex items-center">
+<span class="font-label-sm text-outline italic">Available for seating</span>
+</div>
+<button class="w-full h-touch-target rounded-full bg-primary-container text-white font-label-bold flex items-center justify-center gap-2 squishy shadow-md">
+<span class="material-symbols-outlined text-lg">person_add</span>
+                    Assign Guests
+                </button>
+</div>
+<!-- Table Card: Waiting -->
+<div class="bg-surface-container-lowest p-md rounded-[24px] shadow-[0_8px_32px_rgba(0,0,0,0.04)] border border-surface-container hover:shadow-[0_16px_48px_rgba(0,0,0,0.08)] transition-all border-l-4 border-l-secondary-container">
+<div class="flex justify-between items-start mb-lg">
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface">T-18</h3>
+<p class="font-label-sm text-outline">Main Hall • 6 Seats</p>
+</div>
+<span class="px-3 py-1 rounded-full bg-secondary-container text-on-secondary-container font-label-bold text-xs uppercase tracking-wider">Waiting</span>
+</div>
+<div class="flex items-center gap-md mb-lg">
+<div class="w-10 h-10 rounded-full bg-error-container flex items-center justify-center text-on-error-container">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">timer</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-bold text-on-surface">Needs Attention</span>
+<span class="font-label-sm text-error">Checks Requested</span>
+</div>
+</div>
+<button class="w-full h-touch-target rounded-full bg-primary-container text-white font-label-bold flex items-center justify-center gap-2 squishy shadow-md">
+<span class="material-symbols-outlined text-lg">receipt_long</span>
+                    Print Bill
+                </button>
+</div>
+<!-- Table Card: Delayed -->
+<div class="bg-surface-container-lowest p-md rounded-[24px] shadow-[0_8px_32px_rgba(0,0,0,0.04)] border border-surface-container hover:shadow-[0_16px_48px_rgba(0,0,0,0.08)] transition-all border-l-4 border-l-error">
+<div class="flex justify-between items-start mb-lg">
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface">T-01</h3>
+<p class="font-label-sm text-outline">Corner • 4 Seats</p>
+</div>
+<span class="px-3 py-1 rounded-full bg-error-container text-on-error-container font-label-bold text-xs uppercase tracking-wider">Delayed</span>
+</div>
+<div class="flex items-center gap-md mb-lg">
+<div class="w-10 h-10 rounded-full bg-error text-white flex items-center justify-center">
+<span class="material-symbols-outlined">warning</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-bold text-error">15m Overdue</span>
+<span class="font-label-sm text-on-surface-variant">Kitchen Alert</span>
+</div>
+</div>
+<button class="w-full h-touch-target rounded-full bg-primary-container text-white font-label-bold flex items-center justify-center gap-2 squishy shadow-md">
+<span class="material-symbols-outlined text-lg">priority_high</span>
+                    Check Status
+                </button>
+</div>
+<!-- Table Card: Active (Repeat for grid richness) -->
+<div class="bg-surface-container-lowest p-md rounded-[24px] shadow-[0_8px_32px_rgba(0,0,0,0.04)] border border-surface-container hover:shadow-[0_16px_48px_rgba(0,0,0,0.08)] transition-all">
+<div class="flex justify-between items-start mb-lg">
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface">T-09</h3>
+<p class="font-label-sm text-outline">Bar Area • 2 Seats</p>
+</div>
+<span class="px-3 py-1 rounded-full bg-secondary-fixed text-on-secondary-fixed-variant font-label-bold text-xs uppercase tracking-wider">Active</span>
+</div>
+<div class="flex items-center gap-md mb-lg">
+<div class="flex -space-x-2">
+<img alt="Customer" class="w-8 h-8 rounded-full border-2 border-white" data-alt="Portrait of a young woman at a restaurant" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC4wLbJALVhF-nwzp3wj15XbnisNdDTwTPWJ9Jq_aSKz5qfC2RiaTL0rmtDObXKJYrd0MTYYuU7JQIXY2tRa8yjpcklf7xb2ZtOXN9PpD0FRvtKs_w9cxa7e6sPcBjsUxqPul2Y8rDDhdvQN0m6-YYnJ2T_i5sEM9XMrUJMqB8HIIOWYSW1gmN1iGhg8R1UxV5s4UPMVG-Ch86STcfv5AAjzg7HX8wiZRCjPfkGfcZF58Ua2vSMx3YGqblmVwbj7lz96QSAQk0wfeo"/>
+</div>
+<div class="flex flex-col">
+<span class="font-label-bold text-on-surface">1 Order</span>
+<span class="font-label-sm text-secondary">Dessert Served</span>
+</div>
+</div>
+<button class="w-full h-touch-target rounded-full bg-primary-container text-white font-label-bold flex items-center justify-center gap-2 squishy shadow-md">
+<span class="material-symbols-outlined text-lg">add_circle</span>
+                    New Order
+                </button>
+</div>
+<!-- Table Card: Active -->
+<div class="bg-surface-container-lowest p-md rounded-[24px] shadow-[0_8px_32px_rgba(0,0,0,0.04)] border border-surface-container hover:shadow-[0_16px_48px_rgba(0,0,0,0.08)] transition-all">
+<div class="flex justify-between items-start mb-lg">
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface">T-22</h3>
+<p class="font-label-sm text-outline">Upper Deck • 8 Seats</p>
+</div>
+<span class="px-3 py-1 rounded-full bg-secondary-fixed text-on-secondary-fixed-variant font-label-bold text-xs uppercase tracking-wider">Active</span>
+</div>
+<div class="flex items-center gap-md mb-lg">
+<div class="flex -space-x-2">
+<div class="w-8 h-8 rounded-full border-2 border-white bg-primary-fixed flex items-center justify-center text-[10px] font-bold">JP</div>
+<div class="w-8 h-8 rounded-full border-2 border-white bg-secondary-fixed flex items-center justify-center text-[10px] font-bold">ML</div>
+</div>
+<div class="flex flex-col">
+<span class="font-label-bold text-on-surface">6 Orders</span>
+<span class="font-label-sm text-secondary">Starters Ready</span>
+</div>
+</div>
+<button class="w-full h-touch-target rounded-full bg-primary-container text-white font-label-bold flex items-center justify-center gap-2 squishy shadow-md">
+<span class="material-symbols-outlined text-lg">restaurant</span>
+                    Serve Food
+                </button>
+</div>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center justify-around gap-4 bg-[#B00012] w-auto min-w-[280px] rounded-full px-6 py-3 shadow-[0_24px_48px_-12px_rgba(176,0,18,0.25)]">
+<button class="text-white/70 p-3 hover:scale-105 active:scale-95 transition-all duration-200 squishy">
+<span class="material-symbols-outlined" data-icon="restaurant_menu">restaurant_menu</span>
+</button>
+<button class="bg-white/20 scale-110 rounded-full p-3 text-white transition-all duration-200 squishy">
+<span class="material-symbols-outlined" data-icon="table_restaurant" style="font-variation-settings: 'FILL' 1;">table_restaurant</span>
+</button>
+<button class="text-white/70 p-3 hover:scale-105 active:scale-95 transition-all duration-200 squishy">
+<span class="material-symbols-outlined" data-icon="receipt_long">receipt_long</span>
+</button>
+<button class="text-white/70 p-3 hover:scale-105 active:scale-95 transition-all duration-200 squishy">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+</nav>
+</body></html>

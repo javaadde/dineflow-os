@@ -1,21 +1,25 @@
-import { TextInput, TextInputProps, View, StyleSheet } from 'react-native';
+import { StyleProp, StyleSheet, TextInput, TextInputProps, View, ViewStyle } from 'react-native';
 
 import {
   DineFlowColors,
+  DineFlowFontFamily,
   DineFlowRadius,
+  DineFlowShadows,
   DineFlowSpacing,
   DineFlowTypography,
 } from '@/constants/theme';
 
-type InputProps = TextInputProps;
+type InputProps = TextInputProps & {
+  containerStyle?: StyleProp<ViewStyle>;
+};
 
-export function Input(props: InputProps) {
+export function Input({ containerStyle, style, ...props }: InputProps) {
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, containerStyle]}>
       <TextInput
         {...props}
         placeholderTextColor={DineFlowColors.textSecondary}
-        style={[styles.input, props.style]}
+        style={[styles.input, style]}
       />
     </View>
   );
@@ -23,17 +27,17 @@ export function Input(props: InputProps) {
 
 const styles = StyleSheet.create({
   container: {
-    borderWidth: 1,
-    borderColor: DineFlowColors.border,
     borderRadius: DineFlowRadius.pill,
     backgroundColor: DineFlowColors.surface,
-    paddingHorizontal: DineFlowSpacing.lg,
-    height: 48,
+    paddingHorizontal: DineFlowSpacing.md,
+    minHeight: DineFlowSpacing.touchTarget,
     justifyContent: 'center',
+    ...DineFlowShadows.level1,
   },
   input: {
     color: DineFlowColors.textPrimary,
-    fontSize: DineFlowTypography.body,
+    ...DineFlowTypography.body,
+    fontFamily: DineFlowFontFamily,
     padding: 0,
   },
 });

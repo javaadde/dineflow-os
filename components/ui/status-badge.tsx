@@ -2,12 +2,13 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import {
   DineFlowColors,
+  DineFlowFontFamily,
   DineFlowRadius,
   DineFlowSpacing,
   DineFlowTypography,
 } from '@/constants/theme';
 
-type StatusVariant = 'pending' | 'cooking' | 'ready';
+type StatusVariant = 'pending' | 'cooking' | 'ready' | 'available' | 'occupied' | 'neutral';
 
 type StatusBadgeProps = {
   label: string;
@@ -16,8 +17,11 @@ type StatusBadgeProps = {
 
 const badgeMap = {
   pending: { bg: '#FFF7ED', color: DineFlowColors.warning },
-  cooking: { bg: '#FEF2F2', color: DineFlowColors.primary },
+  cooking: { bg: DineFlowColors.primarySoft, color: DineFlowColors.primary },
   ready: { bg: '#ECFDF3', color: DineFlowColors.success },
+  available: { bg: '#ECFDF3', color: DineFlowColors.success },
+  occupied: { bg: DineFlowColors.primarySoft, color: DineFlowColors.primary },
+  neutral: { bg: DineFlowColors.surfaceContainerHigh, color: DineFlowColors.textSecondary },
 } as const;
 
 export function StatusBadge({ label, variant }: StatusBadgeProps) {
@@ -34,11 +38,11 @@ const styles = StyleSheet.create({
   badge: {
     alignSelf: 'flex-start',
     borderRadius: DineFlowRadius.pill,
-    paddingHorizontal: DineFlowSpacing.md,
+    paddingHorizontal: DineFlowSpacing.sm,
     paddingVertical: DineFlowSpacing.xs,
   },
   text: {
-    fontSize: DineFlowTypography.caption,
-    fontWeight: '600',
+    ...DineFlowTypography.labelSmall,
+    fontFamily: DineFlowFontFamily,
   },
 });

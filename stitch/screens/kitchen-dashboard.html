@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "error-container": "#ffdad6",
+                      "outline-variant": "#e5bdb9",
+                      "inverse-surface": "#2f3131",
+                      "error": "#ba1a1a",
+                      "on-secondary-container": "#741623",
+                      "primary": "#84000a",
+                      "primary-fixed": "#ffdad6",
+                      "surface-container-high": "#e8e8e8",
+                      "primary-container": "#b00012",
+                      "on-error-container": "#93000a",
+                      "on-tertiary-fixed": "#340f15",
+                      "primary-fixed-dim": "#ffb4ac",
+                      "on-error": "#ffffff",
+                      "surface-container-highest": "#e2e2e2",
+                      "surface-bright": "#f9f9f9",
+                      "on-background": "#1a1c1c",
+                      "inverse-primary": "#ffb4ac",
+                      "tertiary-fixed-dim": "#f8b5bb",
+                      "secondary-fixed-dim": "#ffb3b5",
+                      "background": "#f9f9f9",
+                      "surface-container-low": "#f3f3f3",
+                      "on-secondary-fixed-variant": "#84222e",
+                      "surface": "#f9f9f9",
+                      "secondary": "#a43a43",
+                      "on-primary": "#ffffff",
+                      "tertiary": "#5f3137",
+                      "on-secondary-fixed": "#40000b",
+                      "on-primary-fixed": "#410002",
+                      "on-tertiary": "#ffffff",
+                      "surface-container-lowest": "#ffffff",
+                      "on-secondary": "#ffffff",
+                      "on-surface-variant": "#5c403d",
+                      "on-primary-fixed-variant": "#93000d",
+                      "secondary-container": "#fe7f86",
+                      "on-surface": "#1a1c1c",
+                      "tertiary-container": "#7a484e",
+                      "inverse-on-surface": "#f1f1f1",
+                      "surface-container": "#eeeeee",
+                      "surface-tint": "#bd111a",
+                      "outline": "#906f6b",
+                      "on-tertiary-fixed-variant": "#68393f",
+                      "surface-dim": "#dadada",
+                      "on-tertiary-container": "#febac1",
+                      "on-primary-container": "#ffbbb3",
+                      "secondary-fixed": "#ffdada",
+                      "tertiary-fixed": "#ffd9dc",
+                      "surface-variant": "#e2e2e2"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "xs": "4px",
+                      "base": "8px",
+                      "touch-target": "56px",
+                      "lg": "32px",
+                      "xl": "48px",
+                      "sm": "12px",
+                      "md": "24px"
+              },
+              "fontFamily": {
+                      "label-bold": ["Plus Jakarta Sans"],
+                      "label-sm": ["Plus Jakarta Sans"],
+                      "body-lg": ["Plus Jakarta Sans"],
+                      "display-lg": ["Plus Jakarta Sans"],
+                      "headline-md": ["Plus Jakarta Sans"],
+                      "body-md": ["Plus Jakarta Sans"]
+              }
+            },
+          },
+        }
+      </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface selection:bg-primary-fixed selection:text-on-primary-fixed min-h-screen pb-32">
+<!-- TopAppBar -->
+<header class="bg-slate-50 dark:bg-slate-950 flex justify-between items-center w-full px-6 py-4 docked full-width top-0 z-40">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full overflow-hidden bg-surface-container-high ring-2 ring-primary-container/10">
+<img alt="Staff profile photo" class="w-full h-full object-cover" data-alt="close-up of a professional chef in white uniform working in a clean modern kitchen with warm atmospheric lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCBfXJ6cI2uEZz26qZeETSHJ3UZ3huKqVonCRsbCDCQddqkSzwe5gV6m6oGJcQqOh8tujzay_zxHR83jYTlxlLJnyklr3BVNwl8Nco2I7tTdrKaXp-zmUejDE8CkuLsU5XUfn4214yHmOV_5jQXdNJF_jCJgKhgEpMW5Rn4wKJ_NLo9gTicFH51sz6PhDOwB-UKlDeu-IhXU_-c7CBkDkqDeDbMq2C-lvEntIOtmJgLns5H4Z2_c3B5PhppUeGPTK4YUoP8Bb2Yvg4"/>
+</div>
+<h1 class="font-['Plus_Jakarta_Sans'] font-semibold text-lg text-on-surface">Kitchen Monitor</h1>
+</div>
+<div class="flex items-center gap-4">
+<button class="w-touch-target h-touch-target flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-200 ease-in-out">
+<span class="material-symbols-outlined text-[#B00012] dark:text-red-500">notifications</span>
+</button>
+</div>
+</header>
+<main class="px-6 py-6 max-w-7xl mx-auto">
+<!-- Status Tabs -->
+<div class="flex gap-3 mb-8 overflow-x-auto pb-2 scrollbar-hide">
+<button class="px-8 py-3 rounded-full bg-primary-container text-white font-label-bold text-label-bold shadow-lg shadow-primary-container/20 transition-all active:scale-95">
+                Pending (8)
+            </button>
+<button class="px-8 py-3 rounded-full bg-surface-container-lowest text-on-surface-variant font-label-bold text-label-bold hover:bg-surface-container-low transition-all active:scale-95">
+                Cooking (5)
+            </button>
+<button class="px-8 py-3 rounded-full bg-surface-container-lowest text-on-surface-variant font-label-bold text-label-bold hover:bg-surface-container-low transition-all active:scale-95">
+                Ready (12)
+            </button>
+</div>
+<!-- Order Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<!-- Delayed Order Card -->
+<div class="bg-surface-container-lowest rounded-[24px] p-6 shadow-[0_8px_32px_rgba(0,0,0,0.04)] border border-white flex flex-col gap-6">
+<div class="flex justify-between items-start">
+<div>
+<div class="flex items-center gap-2 mb-1">
+<span class="font-label-bold text-label-bold text-on-surface">Order #2401</span>
+<span class="px-3 py-1 rounded-full bg-error-container text-on-error-container font-label-sm text-label-sm">Delayed</span>
+</div>
+<h2 class="font-headline-md text-headline-md text-on-surface">Table 12</h2>
+</div>
+<div class="flex flex-col items-end">
+<span class="font-label-bold text-label-bold text-error">18m elapsed</span>
+<span class="text-on-surface-variant font-label-sm text-label-sm">Server: Elena</span>
+</div>
+</div>
+<div class="space-y-4">
+<div class="flex justify-between items-center py-3 border-b border-surface-container">
+<div class="flex items-center gap-3">
+<span class="font-label-bold text-label-bold text-primary">2x</span>
+<span class="font-body-md text-body-md text-on-surface">Wagyu Burger</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant italic">Well Done</span>
+</div>
+<div class="flex justify-between items-center py-3 border-b border-surface-container">
+<div class="flex items-center gap-3">
+<span class="font-label-bold text-label-bold text-primary">1x</span>
+<span class="font-body-md text-body-md text-on-surface">Truffle Fries</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">No Salt</span>
+</div>
+</div>
+<button class="mt-auto w-full py-4 rounded-full bg-primary-container text-white font-label-bold text-label-bold flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition-all">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">restaurant_menu</span>
+                    Start Cooking
+                </button>
+</div>
+<!-- In Progress Order Card -->
+<div class="bg-surface-container-lowest rounded-[24px] p-6 shadow-[0_8px_32px_rgba(0,0,0,0.04)] border border-white flex flex-col gap-6">
+<div class="flex justify-between items-start">
+<div>
+<div class="flex items-center gap-2 mb-1">
+<span class="font-label-bold text-label-bold text-on-surface">Order #2405</span>
+<span class="px-3 py-1 rounded-full bg-secondary-fixed text-on-secondary-fixed-variant font-label-sm text-label-sm">Cooking</span>
+</div>
+<h2 class="font-headline-md text-headline-md text-on-surface">Table 04</h2>
+</div>
+<div class="flex flex-col items-end">
+<span class="font-label-bold text-label-bold text-on-surface-variant">08m elapsed</span>
+<span class="text-on-surface-variant font-label-sm text-label-sm">Server: Marcus</span>
+</div>
+</div>
+<div class="space-y-4">
+<div class="flex justify-between items-center py-3 border-b border-surface-container">
+<div class="flex items-center gap-3">
+<span class="font-label-bold text-label-bold text-primary">1x</span>
+<span class="font-body-md text-body-md text-on-surface">Pan-Seared Scallops</span>
+</div>
+</div>
+<div class="flex justify-between items-center py-3 border-b border-surface-container">
+<div class="flex items-center gap-3">
+<span class="font-label-bold text-label-bold text-primary">1x</span>
+<span class="font-body-md text-body-md text-on-surface">Lobster Bisque</span>
+</div>
+</div>
+<div class="flex justify-between items-center py-3 border-b border-surface-container">
+<div class="flex items-center gap-3">
+<span class="font-label-bold text-label-bold text-primary">1x</span>
+<span class="font-body-md text-body-md text-on-surface">Dry-Aged Ribeye</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant italic">Medium Rare</span>
+</div>
+</div>
+<button class="mt-auto w-full py-4 rounded-full bg-primary text-white font-label-bold text-label-bold flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition-all">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+                    Mark Ready
+                </button>
+</div>
+<!-- New Order Card -->
+<div class="bg-surface-container-lowest rounded-[24px] p-6 shadow-[0_8px_32px_rgba(0,0,0,0.04)] border border-white flex flex-col gap-6">
+<div class="flex justify-between items-start">
+<div>
+<div class="flex items-center gap-2 mb-1">
+<span class="font-label-bold text-label-bold text-on-surface">Order #2408</span>
+<span class="px-3 py-1 rounded-full bg-surface-container-high text-on-surface-variant font-label-sm text-label-sm">Pending</span>
+</div>
+<h2 class="font-headline-md text-headline-md text-on-surface">Table 18</h2>
+</div>
+<div class="flex flex-col items-end">
+<span class="font-label-bold text-label-bold text-on-surface-variant">02m elapsed</span>
+<span class="text-on-surface-variant font-label-sm text-label-sm">Server: Sarah</span>
+</div>
+</div>
+<div class="space-y-4">
+<div class="flex justify-between items-center py-3 border-b border-surface-container">
+<div class="flex items-center gap-3">
+<span class="font-label-bold text-label-bold text-primary">4x</span>
+<span class="font-body-md text-body-md text-on-surface">Miso Mackerel</span>
+</div>
+</div>
+</div>
+<button class="mt-auto w-full py-4 rounded-full bg-primary-container text-white font-label-bold text-label-bold flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition-all">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">restaurant_menu</span>
+                    Start Cooking
+                </button>
+</div>
+<!-- Ready Order Card (Dimmed) -->
+<div class="bg-surface-container-low/60 rounded-[24px] p-6 border border-white flex flex-col gap-6 opacity-80">
+<div class="flex justify-between items-start">
+<div>
+<div class="flex items-center gap-2 mb-1">
+<span class="font-label-bold text-label-bold text-on-surface">Order #2399</span>
+<span class="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 font-label-sm text-label-sm">Ready</span>
+</div>
+<h2 class="font-headline-md text-headline-md text-on-surface">Table 07</h2>
+</div>
+<div class="flex flex-col items-end">
+<span class="font-label-bold text-label-bold text-on-surface-variant">Picked up</span>
+<span class="text-on-surface-variant font-label-sm text-label-sm">Server: Elena</span>
+</div>
+</div>
+<div class="space-y-4">
+<div class="flex justify-between items-center py-3 border-b border-surface-container">
+<div class="flex items-center gap-3">
+<span class="font-label-bold text-label-bold text-primary/40">1x</span>
+<span class="font-body-md text-body-md text-on-surface/40 line-through">Caesar Salad</span>
+</div>
+</div>
+</div>
+<button class="mt-auto w-full py-4 rounded-full border-2 border-primary-container text-primary-container font-label-bold text-label-bold flex items-center justify-center gap-2">
+<span class="material-symbols-outlined">history</span>
+                    Recall Order
+                </button>
+</div>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center justify-around gap-4 bg-[#B00012] w-auto min-w-[280px] rounded-full px-6 py-3 shadow-[0_24px_48px_-12px_rgba(176,0,18,0.25)]">
+<button class="bg-white/20 scale-110 rounded-full p-3 text-white transition-all duration-200 ease-in-out hover:scale-105 active:scale-95">
+<span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 1;">restaurant_menu</span>
+</button>
+<button class="text-white/70 p-3 transition-all duration-200 ease-in-out hover:scale-105 active:scale-95">
+<span class="material-symbols-outlined text-[24px]">table_restaurant</span>
+</button>
+<button class="text-white/70 p-3 transition-all duration-200 ease-in-out hover:scale-105 active:scale-95">
+<span class="material-symbols-outlined text-[24px]">receipt_long</span>
+</button>
+<button class="text-white/70 p-3 transition-all duration-200 ease-in-out hover:scale-105 active:scale-95">
+<span class="material-symbols-outlined text-[24px]">settings</span>
+</button>
+</nav>
+</body></html>

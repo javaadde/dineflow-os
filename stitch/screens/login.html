@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>DineFlow OS - Login</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "secondary-fixed": "#ffdada",
+                    "on-surface": "#1a1c1c",
+                    "surface-container-highest": "#e2e2e2",
+                    "tertiary": "#5f3137",
+                    "on-primary-fixed-variant": "#93000d",
+                    "surface-container-low": "#f3f3f3",
+                    "on-surface-variant": "#5c403d",
+                    "on-error-container": "#93000a",
+                    "surface-bright": "#f9f9f9",
+                    "error": "#ba1a1a",
+                    "outline": "#906f6b",
+                    "on-secondary-fixed": "#40000b",
+                    "surface-container": "#eeeeee",
+                    "on-tertiary-container": "#febac1",
+                    "surface-container-high": "#e8e8e8",
+                    "primary-fixed": "#ffdad6",
+                    "on-primary": "#ffffff",
+                    "primary": "#84000a",
+                    "background": "#f9f9f9",
+                    "error-container": "#ffdad6",
+                    "outline-variant": "#e5bdb9",
+                    "on-secondary": "#ffffff",
+                    "surface-container-lowest": "#ffffff",
+                    "on-tertiary-fixed": "#340f15",
+                    "inverse-surface": "#2f3131",
+                    "surface-tint": "#bd111a",
+                    "primary-fixed-dim": "#ffb4ac",
+                    "on-tertiary": "#ffffff",
+                    "surface-dim": "#dadada",
+                    "secondary-container": "#fe7f86",
+                    "on-secondary-container": "#741623",
+                    "primary-container": "#b00012",
+                    "surface-variant": "#e2e2e2",
+                    "on-background": "#1a1c1c",
+                    "tertiary-fixed": "#ffd9dc",
+                    "on-primary-container": "#ffbbb3",
+                    "inverse-primary": "#ffb4ac",
+                    "tertiary-container": "#7a484e",
+                    "secondary": "#a43a43",
+                    "tertiary-fixed-dim": "#f8b5bb",
+                    "on-tertiary-fixed-variant": "#68393f",
+                    "surface": "#f9f9f9",
+                    "secondary-fixed-dim": "#ffb3b5",
+                    "on-error": "#ffffff",
+                    "inverse-on-surface": "#f1f1f1",
+                    "on-secondary-fixed-variant": "#84222e",
+                    "on-primary-fixed": "#410002"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "base": "8px",
+                    "touch-target": "56px",
+                    "sm": "12px",
+                    "lg": "32px",
+                    "xl": "48px",
+                    "xs": "4px",
+                    "md": "24px"
+            },
+            "fontFamily": {
+                    "label-sm": ["Plus Jakarta Sans"],
+                    "headline-md": ["Plus Jakarta Sans"],
+                    "body-md": ["Plus Jakarta Sans"],
+                    "display-lg": ["Plus Jakarta Sans"],
+                    "label-bold": ["Plus Jakarta Sans"],
+                    "body-lg": ["Plus Jakarta Sans"]
+            },
+            "fontSize": {
+                    "label-sm": ["13px", {"lineHeight": "18px", "fontWeight": "500"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "display-lg": ["40px", {"lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "label-bold": ["14px", {"lineHeight": "20px", "fontWeight": "700"}],
+                    "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            background-color: #f5f5f5;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+        .squishy-scale {
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .squishy-scale:active {
+            transform: scale(0.95);
+        }
+        .soft-elevation {
+            box-shadow: 0 8px 32px -4px rgba(0, 0, 0, 0.04), 0 4px 12px -2px rgba(0, 0, 0, 0.02);
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="flex flex-col min-h-screen items-center justify-center p-6 text-on-surface">
+<main class="w-full max-w-md flex flex-col items-center space-y-xl">
+<header class="flex flex-col items-center text-center space-y-md">
+<div class="w-24 h-24 rounded-full bg-white flex items-center justify-center soft-elevation mb-4">
+<span class="material-symbols-outlined text-primary-container text-5xl" style="font-variation-settings: 'FILL' 1;">restaurant_menu</span>
+</div>
+<div class="space-y-xs">
+<h1 class="text-primary-container font-display-lg text-display-lg tracking-tighter">DineFlow OS</h1>
+<p class="text-on-surface-variant font-body-lg text-body-lg">Welcome back, Staff</p>
+</div>
+</header>
+<section class="w-full bg-white rounded-[32px] p-md soft-elevation space-y-md">
+<div class="space-y-base">
+<label class="block font-label-bold text-label-bold text-on-surface-variant px-4" for="staff-id">Staff ID</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-5 top-1/2 -translate-y-1/2 text-outline-variant">person</span>
+<input class="w-full h-[64px] pl-14 pr-6 bg-surface-bright border-none rounded-full focus:ring-2 focus:ring-primary-container/20 text-body-md font-body-md placeholder:text-outline-variant transition-all" id="staff-id" placeholder="Enter your ID" type="text"/>
+</div>
+</div>
+<div class="space-y-base">
+<label class="block font-label-bold text-label-bold text-on-surface-variant px-4" for="pin">PIN</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-5 top-1/2 -translate-y-1/2 text-outline-variant">lock</span>
+<input class="w-full h-[64px] pl-14 pr-6 bg-surface-bright border-none rounded-full focus:ring-2 focus:ring-primary-container/20 text-body-md font-body-md placeholder:text-outline-variant tracking-widest transition-all" id="pin" placeholder="••••" type="password"/>
+</div>
+</div>
+<button class="w-full h-touch-target bg-primary-container text-on-primary font-label-bold text-label-bold rounded-full squishy-scale shadow-lg shadow-primary-container/20 mt-4 flex items-center justify-center space-x-2">
+<span>Login</span>
+<span class="material-symbols-outlined text-lg">arrow_forward</span>
+</button>
+<div class="flex justify-center pt-2">
+<a class="text-on-surface-variant font-label-sm text-label-sm hover:text-primary-container transition-colors" href="#">Forgot PIN?</a>
+</div>
+</section>
+<footer class="pt-xl text-center space-y-md">
+<div class="flex items-center justify-center space-x-md">
+<div class="w-12 h-1 bg-surface-container-highest rounded-full"></div>
+<span class="text-outline text-label-sm font-label-sm">Authorized Access Only</span>
+<div class="w-12 h-1 bg-surface-container-highest rounded-full"></div>
+</div>
+<div class="grid grid-cols-2 gap-md w-full">
+<div class="flex items-center p-md bg-white/50 rounded-3xl space-x-sm">
+<span class="material-symbols-outlined text-primary-container">support_agent</span>
+<div class="text-left">
+<p class="text-label-bold font-label-bold text-on-surface">IT Help</p>
+<p class="text-label-sm font-label-sm text-on-surface-variant">Ext. 404</p>
+</div>
+</div>
+<div class="flex items-center p-md bg-white/50 rounded-3xl space-x-sm">
+<span class="material-symbols-outlined text-primary-container">sync</span>
+<div class="text-left">
+<p class="text-label-bold font-label-bold text-on-surface">System</p>
+<p class="text-label-sm font-label-sm text-on-surface-variant">v2.4.0</p>
+</div>
+</div>
+</div>
+</footer>
+</main>
+<div class="fixed bottom-0 left-0 w-full p-xl pointer-events-none opacity-20 overflow-hidden select-none">
+<div class="flex flex-wrap justify-center gap-xl grayscale opacity-10">
+<span class="material-symbols-outlined text-9xl">restaurant</span>
+<span class="material-symbols-outlined text-9xl">local_dining</span>
+<span class="material-symbols-outlined text-9xl">wine_bar</span>
+<span class="material-symbols-outlined text-9xl">bakery_dining</span>
+<span class="material-symbols-outlined text-9xl">skillet</span>
+</div>
+</div>
+</body></html>
