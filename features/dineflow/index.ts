@@ -5,4 +5,6 @@ export {
   OrderCreationScreen,
   SignUpScreen,
   WaiterDashboardScreen,
+  WorkerRegisterScreen,
+  WorkersScreen,
 } from './screens';

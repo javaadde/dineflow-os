@@ -28,7 +28,16 @@ npm run dev
 ## Endpoints
 
 - `GET /api/health`
-- `POST /api/auth/register`
-- `POST /api/auth/login`
+- `POST /api/auth/company/register`
+  - body: `{ "email": "OWNER@MAIL.COM", "companyId": "COMPANYID", "password": "...", "confirmPassword": "..." }`
+- `POST /api/auth/company/login`
+  - body: `{ "identifier": "OWNER@MAIL.COM or COMPANYID", "password": "..." }`
+- `POST /api/auth/workers/invite`
+  - owner token required
+  - body: `{ "email": "chef@restaurant.com", "role": "chef", "specialties": ["Burgers"] }`
+- `POST /api/auth/workers/register`
+  - body: `{ "companyId": "COMPANYID", "email": "chef@restaurant.com", "name": "Chef", "password": "...", "confirmPassword": "..." }`
+- `POST /api/auth/workers/login`
+  - body: `{ "email": "chef@restaurant.com", "password": "..." }`
 - `GET /api/images`
 - `POST /api/images/upload` (multipart form field: `image`)

@@ -12,6 +12,7 @@ export default function TabLayout() {
       <Tabs.Screen name="order" />
       <Tabs.Screen name="kitchen" />
       <Tabs.Screen name="manager" />
+      <Tabs.Screen name="workers" />
       <Tabs.Screen name="explore" options={{ href: null }} />
     </Tabs>
   );

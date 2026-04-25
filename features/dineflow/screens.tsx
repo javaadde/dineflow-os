@@ -1,7 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
-import { PropsWithChildren, useMemo, useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { PropsWithChildren, useEffect, useMemo, useState } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -23,6 +23,16 @@ import {
   DineFlowSpacing as s,
   DineFlowTypography as t,
 } from '@/constants/theme';
+import { specialtyOptions, useAuthStore, WorkerRole } from '@/store/auth';
+import {
+  getApiBaseUrl,
+  inviteWorkerRequest,
+  loginCompanyRequest,
+  loginWorkerRequest,
+  parseVoiceOrderCommandRequest,
+  registerCompanyRequest,
+  registerWorkerRequest,
+} from '@/utils/api';
 
 const red = '#B00012';
 const primary = '#84000a';
@@ -48,13 +58,14 @@ const popularImages = [
   'https://lh3.googleusercontent.com/aida-public/AB6AXuBUTE2lEAZL6-DDMo4UVMZKVGd3GDmtbj0Z8qpNN9B1vC_ijk0kWIhVXNPhO8ovPgrR75TI14IIECePaUVSQB8Y9VMPcMkl-tzUxrhIRPf7dPDsg9_naylhw-4f2GRQQQ_1MRVLoAIQ0w3Iu9MtQJrIN2JJYmIYXmXm-RnRhv3xIe0unOKsU_rdFMLuQUQateuywVvskOnGN2lU4mLIFsesqR5cISjEcswlBZTwAFaFxKlOvpY1J8fIXLmj8QhybVT9Rb4QRj0iwJk',
 ];
 
-type NavKey = 'order' | 'waiter' | 'kitchen' | 'manager';
+type NavKey = 'order' | 'waiter' | 'kitchen' | 'manager' | 'workers';
 
 const navItems: { key: NavKey; icon: keyof typeof MaterialIcons.glyphMap; href: string }[] = [
   { key: 'order', icon: 'restaurant-menu', href: '/order' },
   { key: 'waiter', icon: 'table-restaurant', href: '/waiter' },
   { key: 'kitchen', icon: 'receipt-long', href: '/kitchen' },
-  { key: 'manager', icon: 'settings', href: '/manager' },
+  { key: 'manager', icon: 'dashboard', href: '/manager' },
+  { key: 'workers', icon: 'group-add', href: '/workers' },
 ];
 
 function DIcon({
@@ -94,9 +105,19 @@ function ScreenShell({
 }
 
 function BottomNav({ active }: { active: NavKey }) {
+  const user = useAuthStore((state) => state.currentUser);
+  const canAccess = useAuthStore((state) => state.canAccess);
+  const visibleItems = navItems.filter((item) => canAccess(user?.role, item.key));
+  const openVoiceOrder = () => {
+    router.push({
+      pathname: '/order',
+      params: { voice: String(Date.now()) },
+    } as never);
+  };
+
   return (
     <View style={styles.bottomNav}>
-      {navItems.map((item) => {
+      {visibleItems.map((item) => {
         const selected = item.key === active;
 
         return (
@@ -108,6 +129,17 @@ function BottomNav({ active }: { active: NavKey }) {
           </Pressable>
         );
       })}
+      {user?.role === 'server' ? (
+        <Pressable
+          accessibilityLabel="Open voice ordering"
+          accessibilityRole="button"
+          hitSlop={12}
+          onPress={openVoiceOrder}
+          style={[styles.navItem, styles.navVoiceItem]}
+          testID="server-voice-order-button">
+          <DIcon name="mic" color="#ffffff" size={25} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -121,6 +153,9 @@ function TopBar({
   titleColor?: string;
   showBack?: boolean;
 }) {
+  const logout = useAuthStore((state) => state.logout);
+  const user = useAuthStore((state) => state.currentUser);
+
   return (
     <View style={styles.topBar}>
       <View style={styles.topBarLeft}>
@@ -136,8 +171,64 @@ function TopBar({
       <View style={styles.topRight}>
         <DIcon name="notifications" color={showBack ? '#94a3b8' : red} />
         {showBack ? <Image source={{ uri: profile }} style={styles.smallAvatar} contentFit="cover" /> : null}
+        {user ? (
+          <Pressable
+            onPress={() => {
+              logout();
+              router.replace('/login' as never);
+            }}>
+            <DIcon name="logout" color={c.textSecondary} size={22} />
+          </Pressable>
+        ) : null}
       </View>
     </View>
+  );
+}
+
+function ProtectedScreen({
+  route,
+  children,
+}: PropsWithChildren<{ route: 'order' | 'waiter' | 'kitchen' | 'manager' | 'workers' }>) {
+  const user = useAuthStore((state) => state.currentUser);
+  const canAccess = useAuthStore((state) => state.canAccess);
+
+  if (!user) {
+    return <AccessNotice title="Login required" body="Use your Company ID and invited email to continue." action="Go to Login" href="/login" />;
+  }
+
+  if (!canAccess(user.role, route)) {
+    return (
+      <AccessNotice
+        title="Limited access"
+        body={`Your ${user.role} account does not have permission to open this workspace.`}
+        action="Open My Workspace"
+        href={homeForRole(user.role)}
+      />
+    );
+  }
+
+  return <>{children}</>;
+}
+
+function homeForRole(role: string) {
+  if (role === 'chef') return '/kitchen';
+  if (role === 'server') return '/waiter';
+  if (role === 'manager' || role === 'owner') return '/manager';
+  return '/login';
+}
+
+function AccessNotice({ title, body, action, href }: { title: string; body: string; action: string; href: string }) {
+  return (
+    <ScreenShell backgroundColor={bg} contentStyle={styles.authScroll}>
+      <View style={styles.loginMark}>
+        <DIcon name="lock" color={red} size={44} />
+      </View>
+      <Text style={styles.authTitle}>{title}</Text>
+      <Text style={styles.authSubtitle}>{body}</Text>
+      <Pressable style={[styles.authButton, styles.accessButton]} onPress={() => router.replace(href as never)}>
+        <Text style={styles.primaryButtonText}>{action}</Text>
+      </Pressable>
+    </ScreenShell>
   );
 }
 
@@ -250,35 +341,48 @@ const tables = [
 
 export function WaiterDashboardScreen() {
   return (
-    <ScreenShell active="waiter" backgroundColor={bg}>
-      <TopBar title="Welcome back, Chef" titleColor={red} />
-      <View style={styles.section}>
-        <Text style={styles.displayTitle}>Manage Your Tables</Text>
-        <View style={styles.searchRow}>
-          <View style={styles.searchBox}>
-            <DIcon name="search" color={c.outline} />
-            <TextInput placeholder="Search tables or servers..." placeholderTextColor={c.border} style={styles.searchInput} />
+    <ProtectedScreen route="waiter">
+      <ScreenShell active="waiter" backgroundColor={bg}>
+        <TopBar title="Welcome back, Server" titleColor={red} />
+        <View style={styles.section}>
+          <Text style={styles.displayTitle}>Manage Your Tables</Text>
+          <View style={styles.searchRow}>
+            <View style={styles.searchBox}>
+              <DIcon name="search" color={c.outline} />
+              <TextInput placeholder="Search tables or servers..." placeholderTextColor={c.border} style={styles.searchInput} />
+            </View>
+            <Pressable style={styles.filterButton}>
+              <DIcon name="tune" color="#ffffff" />
+            </Pressable>
           </View>
-          <Pressable style={styles.filterButton}>
-            <DIcon name="tune" color="#ffffff" />
-          </Pressable>
         </View>
-      </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipScroller}>
-        {['All', 'Free', 'Active', 'Waiting', 'Delayed'].map((label, index) => (
-          <Chip key={label} label={label} active={index === 0} />
-        ))}
-      </ScrollView>
-      <View style={styles.cardGrid}>
-        {tables.map((table, index) => (
-          <TableCard key={table.id} table={table} index={index} />
-        ))}
-      </View>
-    </ScreenShell>
+        <SoftCard style={styles.aiStatusCard}>
+          <View style={styles.insightHeader}>
+            <View style={styles.sparkIcon}>
+              <DIcon name="auto-awesome" color={red} />
+            </View>
+            <Text style={styles.insightLabel}>AI service prediction</Text>
+          </View>
+          <Text style={styles.insightBody}>
+            Table 12 has a likely 9 minute prep delay. Let guests know before placing the next round.
+          </Text>
+        </SoftCard>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipScroller}>
+          {['All', 'Free', 'Active', 'Waiting', 'Delayed'].map((label, index) => (
+            <Chip key={label} label={label} active={index === 0} />
+          ))}
+        </ScrollView>
+        <View style={styles.cardGrid}>
+          {tables.map((table, index) => (
+            <TableCard key={table.id} table={table} index={index} onAction={() => router.push('/order' as never)} />
+          ))}
+        </View>
+      </ScreenShell>
+    </ProtectedScreen>
   );
 }
 
-function TableCard({ table, index }: { table: (typeof tables)[number]; index: number }) {
+function TableCard({ table, index, onAction }: { table: (typeof tables)[number]; index: number; onAction?: () => void }) {
   return (
     <SoftCard enteringIndex={index} style={[table.status === 'Delayed' && styles.leftError, table.status === 'Waiting' && styles.leftCoral]}>
       <View style={styles.cardHeader}>
@@ -307,7 +411,7 @@ function TableCard({ table, index }: { table: (typeof tables)[number]; index: nu
           {table.subtitle ? <Text style={[styles.smallLabel, table.status !== 'Free' && styles.secondaryText]}>{table.subtitle}</Text> : null}
         </View>
       </View>
-      <Pressable style={styles.primaryButton}>
+      <Pressable style={styles.primaryButton} onPress={onAction}>
         <DIcon name={table.icon} color="#ffffff" size={20} />
         <Text style={styles.primaryButtonText}>{table.action}</Text>
       </Pressable>
@@ -316,82 +420,427 @@ function TableCard({ table, index }: { table: (typeof tables)[number]; index: nu
 }
 
 const menu = [
-  ['APPETIZER', 'Caprese Salad', '$14.50'],
-  ['APPETIZER', 'Crispy Calamari', '$16.00'],
-  ['APPETIZER', 'Garlic Prawns', '$18.50'],
-  ['MAINS', 'Ribeye Steak', '$32.00'],
+  { category: 'Salads', label: 'APPETIZER', name: 'Caprese Salad', price: '$14.50', amount: 14.5 },
+  { category: 'Seafood', label: 'APPETIZER', name: 'Crispy Calamari', price: '$16.00', amount: 16 },
+  { category: 'Seafood', label: 'APPETIZER', name: 'Garlic Prawns', price: '$18.50', amount: 18.5 },
+  { category: 'Steaks', label: 'MAINS', name: 'Ribeye Steak', price: '$32.00', amount: 32 },
 ];
 
+type CartItem = (typeof menu)[number] & {
+  qty: number;
+};
+
+const numberWords: Record<string, number> = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+};
+
 export function OrderCreationScreen() {
+  const params = useLocalSearchParams<{ voice?: string }>();
+  const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
+  const [cart, setCart] = useState<Record<string, CartItem>>({});
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const [voiceListening, setVoiceListening] = useState(false);
+  const [voiceTranscript, setVoiceTranscript] = useState('');
+  const [voiceFeedback, setVoiceFeedback] = useState('Try: "add two Caprese Salad" or "send order".');
+  const selectedTable = tables.find((table) => table.id === selectedTableId);
+  const currentUser = useAuthStore((state) => state.currentUser);
+  const createOrder = useAuthStore((state) => state.createOrder);
+  const cartItems = Object.values(cart);
+  const cartCount = cartItems.reduce((total, item) => total + item.qty, 0);
+  const subtotal = cartItems.reduce((total, item) => total + item.qty * item.amount, 0);
+
+  useEffect(() => {
+    if (params.voice && selectedTable) {
+      setVoiceOpen(true);
+      setVoiceFeedback('Voice ordering is ready. Say or type a command.');
+    }
+  }, [params.voice, selectedTable]);
+
+  const updateCart = (item: (typeof menu)[number], delta: number) => {
+    setCart((current) => {
+      const existing = current[item.name];
+      const nextQty = Math.max((existing?.qty ?? 0) + delta, 0);
+      const next = { ...current };
+
+      if (nextQty === 0) {
+        delete next[item.name];
+      } else {
+        next[item.name] = { ...item, qty: nextQty };
+      }
+
+      return next;
+    });
+  };
+
+  const applyLocalVoiceCommand = (spokenText = voiceTranscript) => {
+    const text = spokenText.trim().toLowerCase();
+
+    if (!text) {
+      setVoiceFeedback('Say or type an order command first.');
+      return false;
+    }
+
+    if (text.includes('clear')) {
+      setCart({});
+      setVoiceFeedback('Cart cleared.');
+      return true;
+    }
+
+    if (text.includes('send') || text.includes('place order')) {
+      if (cartItems.length === 0) {
+        setVoiceFeedback('Add at least one item before sending.');
+        return false;
+      }
+
+      sendOrder();
+      return true;
+    }
+
+    const matchedItem = menu.find((item) => text.includes(item.name.toLowerCase()));
+
+    if (!matchedItem) {
+      setVoiceFeedback('I could not match that to a menu item.');
+      return false;
+    }
+
+    const quantityMatch = text.match(/\b\d+\b/);
+    const wordQuantity = Object.entries(numberWords).find(([word]) => text.includes(word));
+    const quantity = quantityMatch ? Number(quantityMatch[0]) : wordQuantity ? wordQuantity[1] : 1;
+    const delta = text.includes('remove') || text.includes('delete') || text.includes('less') ? -quantity : quantity;
+
+    updateCart(matchedItem, delta);
+    setVoiceFeedback(`${delta > 0 ? 'Added' : 'Removed'} ${Math.abs(delta)} ${matchedItem.name}.`);
+    return true;
+  };
+
+  const applyVoiceCommand = async (spokenText = voiceTranscript) => {
+    const text = spokenText.trim();
+
+    if (!text) {
+      setVoiceFeedback('Say or type an order command first.');
+      return;
+    }
+
+    if (currentUser?.token) {
+      try {
+        const command = await parseVoiceOrderCommandRequest(currentUser.token, {
+          transcript: text,
+          menu: menu.map((item) => ({ name: item.name, category: item.category })),
+        });
+
+        if (command.intent === 'clear') {
+          setCart({});
+          setVoiceFeedback(command.message || 'Cart cleared.');
+          return;
+        }
+
+        if (command.intent === 'send') {
+          if (cartItems.length === 0) {
+            setVoiceFeedback('Add at least one item before sending.');
+            return;
+          }
+
+          sendOrder();
+          return;
+        }
+
+        if (command.intent === 'add' || command.intent === 'remove') {
+          const matchedItem = menu.find((item) => item.name === command.itemName);
+
+          if (matchedItem) {
+            const quantity = Math.max(command.quantity || 1, 1);
+            updateCart(matchedItem, command.intent === 'add' ? quantity : -quantity);
+            setVoiceFeedback(command.message || `${command.intent === 'add' ? 'Added' : 'Removed'} ${quantity} ${matchedItem.name}.`);
+            return;
+          }
+        }
+      } catch {
+        setVoiceFeedback('Using local voice command matching.');
+      }
+    }
+
+    applyLocalVoiceCommand(text);
+  };
+
+  const startVoiceAgent = () => {
+    setVoiceOpen(true);
+    setVoiceFeedback('Listening...');
+
+    const SpeechRecognition =
+      typeof window !== 'undefined'
+        ? (
+            window as typeof window & {
+              SpeechRecognition?: new () => {
+                continuous: boolean;
+                interimResults: boolean;
+                lang: string;
+                start: () => void;
+                onresult: ((event: { results: { [key: number]: { [key: number]: { transcript: string } } }; resultIndex: number }) => void) | null;
+                onerror: (() => void) | null;
+                onend: (() => void) | null;
+              };
+              webkitSpeechRecognition?: new () => {
+                continuous: boolean;
+                interimResults: boolean;
+                lang: string;
+                start: () => void;
+                onresult: ((event: { results: { [key: number]: { [key: number]: { transcript: string } } }; resultIndex: number }) => void) | null;
+                onerror: (() => void) | null;
+                onend: (() => void) | null;
+              };
+            }
+          ).SpeechRecognition ??
+          (
+            window as typeof window & {
+              webkitSpeechRecognition?: new () => {
+                continuous: boolean;
+                interimResults: boolean;
+                lang: string;
+                start: () => void;
+                onresult: ((event: { results: { [key: number]: { [key: number]: { transcript: string } } }; resultIndex: number }) => void) | null;
+                onerror: (() => void) | null;
+                onend: (() => void) | null;
+              };
+            }
+          ).webkitSpeechRecognition
+        : undefined;
+
+    if (!SpeechRecognition) {
+      setVoiceListening(false);
+      setVoiceFeedback('Voice listening is not available here. Type a command below.');
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+    recognition.onresult = (event) => {
+      const transcript = event.results[event.resultIndex][0].transcript;
+      setVoiceTranscript(transcript);
+      void applyVoiceCommand(transcript);
+    };
+    recognition.onerror = () => {
+      setVoiceFeedback('I could not hear that. Try again or type the command.');
+    };
+    recognition.onend = () => setVoiceListening(false);
+    setVoiceListening(true);
+    recognition.start();
+  };
+
+  const sendOrder = () => {
+    if (!selectedTable || cartItems.length === 0) {
+      return;
+    }
+
+    createOrder({
+      table: selectedTable.id,
+      server: currentUser?.name ? `Server: ${currentUser.name}` : 'Server',
+      category: cartItems[0]?.category ?? 'Mains',
+      items: cartItems.map((item) => ({ name: item.name, qty: item.qty })),
+    });
+    setCart({});
+    setSelectedTableId(null);
+    router.push('/waiter' as never);
+  };
+
   return (
-    <ScreenShell active="order" backgroundColor={lowBg} noTopPad contentStyle={styles.orderScroll}>
-      <TopBar title="New Order - Table 12" showBack />
-      <View style={styles.hero}>
-        <View style={styles.heroText}>
-          <Text style={styles.heroEyebrow}>Chef&apos;s Special</Text>
-          <Text style={styles.heroTitle}>Truffle Risotto</Text>
-        </View>
-        <Image source={{ uri: specialDish }} style={styles.heroDish} contentFit="cover" />
-      </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroller}>
-        {['Appetizers', 'Mains', 'Drinks', 'Desserts'].map((label, index) => (
-          <Chip key={label} label={label} active={index === 0} />
-        ))}
-      </ScrollView>
-      <View style={styles.menuGrid}>
-        {menu.map(([category, name, price], index) => (
-          <MenuItemCard key={name} category={category} name={name} price={price} image={menuImages[index]} index={index} />
-        ))}
-      </View>
-      <SoftCard style={styles.orderTray}>
-        <View style={styles.trayLeft}>
-          <View style={styles.cartIcon}>
-            <DIcon name="shopping-cart" color={red} size={30} />
+    <ProtectedScreen route="order">
+      <ScreenShell active="order" backgroundColor={lowBg} noTopPad contentStyle={styles.orderScroll}>
+        <TopBar title={selectedTable ? `New Order - ${selectedTable.id}` : 'Select Table'} showBack />
+        {!selectedTable ? (
+          <View style={styles.tableSelectCanvas}>
+            <View style={styles.section}>
+              <Text style={styles.displayTitle}>Choose a Table</Text>
+              <Text style={styles.bodyMuted}>Select the guest table before opening the menu list.</Text>
+            </View>
+            <View style={styles.tableSelectGrid}>
+              {tables.map((table, index) => (
+                <Pressable key={table.id} onPress={() => setSelectedTableId(table.id)}>
+                  <SoftCard enteringIndex={index} style={styles.tableSelectCard}>
+                    <View style={styles.cardHeader}>
+                      <View>
+                        <Text style={styles.headline}>{table.id}</Text>
+                        <Text style={styles.labelMuted}>{table.meta}</Text>
+                      </View>
+                      <StatusPill label={table.status} tone={table.tone} />
+                    </View>
+                    <View style={styles.tableSelectFooter}>
+                      <Text style={styles.boldLabel}>{table.title}</Text>
+                      <DIcon name="arrow-forward" color={red} />
+                    </View>
+                  </SoftCard>
+                </Pressable>
+              ))}
+            </View>
           </View>
-          <View>
-            <Text style={styles.trayTitle}>Caprese Salad</Text>
-            <Text style={styles.smallLabel}>Selection for order list</Text>
-          </View>
-        </View>
-        <View style={styles.trayBottom}>
-          <View style={styles.quantityPill}>
-            <Pressable style={styles.qtyButtonLight}>
-              <DIcon name="remove" color={primary} />
+        ) : (
+          <>
+            <View style={styles.hero}>
+              <View style={styles.heroText}>
+                <Text style={styles.heroEyebrow}>Chef&apos;s Special</Text>
+                <Text style={styles.heroTitle}>Truffle Risotto</Text>
+              </View>
+              <Image source={{ uri: specialDish }} style={styles.heroDish} contentFit="cover" />
+            </View>
+            <View style={styles.selectedTableBanner}>
+              <View>
+                <Text style={styles.boldLabel}>{selectedTable.id} selected</Text>
+                <Text style={styles.smallLabel}>{selectedTable.meta}</Text>
+              </View>
+              <Pressable onPress={() => setSelectedTableId(null)} style={styles.changeTableButton}>
+                <Text style={styles.linkText}>Change</Text>
+              </Pressable>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroller}>
+              {['Appetizers', 'Mains', 'Drinks', 'Desserts'].map((label, index) => (
+                <Chip key={label} label={label} active={index === 0} />
+              ))}
+            </ScrollView>
+            <View style={styles.menuGrid}>
+              {menu.map((item, index) => (
+                <MenuItemCard
+                  key={item.name}
+                  item={item}
+                  image={menuImages[index]}
+                  index={index}
+                  quantity={cart[item.name]?.qty ?? 0}
+                  onAdd={() => updateCart(item, 1)}
+                  onRemove={() => updateCart(item, -1)}
+                />
+              ))}
+            </View>
+            <SoftCard style={styles.orderTray}>
+              <View style={styles.trayLeft}>
+                <View style={styles.cartIcon}>
+                  <DIcon name="shopping-cart" color={red} size={30} />
+                </View>
+                <View>
+                  <Text style={styles.trayTitle}>{cartCount > 0 ? `${cartCount} item${cartCount === 1 ? '' : 's'} selected` : 'No items selected'}</Text>
+                  <Text style={styles.smallLabel}>Order for {selectedTable.id}</Text>
+                </View>
+              </View>
+              {cartItems.length > 0 ? (
+                <View style={styles.cartLineList}>
+                  {cartItems.map((item) => (
+                    <View key={item.name} style={styles.cartLine}>
+                      <Text style={styles.boldLabel}>
+                        {item.qty}x {item.name}
+                      </Text>
+                      <Text style={styles.smallLabel}>${(item.qty * item.amount).toFixed(2)}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+              <View style={styles.trayBottom}>
+                <View style={styles.quantityPill}>
+                  <Pressable
+                    style={styles.qtyButtonLight}
+                    disabled={cartItems.length === 0}
+                    onPress={() => {
+                      const lastItem = cartItems[cartItems.length - 1];
+                      if (lastItem) updateCart(lastItem, -1);
+                    }}>
+                    <DIcon name="remove" color={primary} />
+                  </Pressable>
+                  <Text style={styles.qtyText}>{cartCount}</Text>
+                  <Pressable
+                    style={styles.qtyButtonRed}
+                    disabled={cartItems.length === 0}
+                    onPress={() => {
+                      const lastItem = cartItems[cartItems.length - 1];
+                      if (lastItem) updateCart(lastItem, 1);
+                    }}>
+                    <DIcon name="add" color="#ffffff" />
+                  </Pressable>
+                </View>
+                <View style={styles.subtotal}>
+                  <Text style={styles.tinyLabel}>SUBTOTAL</Text>
+                  <Text style={styles.subtotalText}>${subtotal.toFixed(2)}</Text>
+                </View>
+              </View>
+            </SoftCard>
+            <Pressable style={[styles.voiceButton, voiceListening && styles.voiceButtonActive]} onPress={startVoiceAgent}>
+              <DIcon name={voiceListening ? 'hearing' : 'mic'} color="#ffffff" size={28} />
             </Pressable>
-            <Text style={styles.qtyText}>2</Text>
-            <Pressable style={styles.qtyButtonRed}>
-              <DIcon name="add" color="#ffffff" />
+            {voiceOpen ? (
+              <SoftCard style={styles.voicePanel}>
+                <View style={styles.cardHeader}>
+                  <View>
+                    <Text style={styles.trayTitle}>Voice Agent</Text>
+                    <Text style={styles.smallLabel}>{voiceFeedback}</Text>
+                  </View>
+                  <Pressable onPress={() => setVoiceOpen(false)} style={styles.closeVoiceButton}>
+                    <DIcon name="close" color={c.textSecondary} size={20} />
+                  </Pressable>
+                </View>
+                <View style={styles.voiceInputBox}>
+                  <DIcon name="record-voice-over" color={red} />
+                  <TextInput
+                    value={voiceTranscript}
+                    onChangeText={setVoiceTranscript}
+                    placeholder='Try "add two Ribeye Steak"'
+                    placeholderTextColor={c.border}
+                    style={styles.fieldInput}
+                  />
+                </View>
+                <View style={styles.voiceActions}>
+                  <Pressable style={styles.voiceSecondaryButton} onPress={startVoiceAgent}>
+                    <Text style={styles.secondaryAuthText}>{voiceListening ? 'Listening...' : 'Listen'}</Text>
+                  </Pressable>
+                  <Pressable style={styles.voiceApplyButton} onPress={() => void applyVoiceCommand()}>
+                    <Text style={styles.primaryButtonText}>Apply Command</Text>
+                  </Pressable>
+                </View>
+                <View style={styles.voiceSuggestions}>
+                  {['add two Caprese Salad', 'remove one Ribeye Steak', 'clear cart', 'send order'].map((command) => (
+                    <Pressable
+                      key={command}
+                      style={styles.voiceSuggestionChip}
+                      onPress={() => {
+                        setVoiceTranscript(command);
+                        void applyVoiceCommand(command);
+                      }}>
+                      <Text style={styles.smallLabel}>{command}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </SoftCard>
+            ) : null}
+            <Pressable style={[styles.sendButton, cartItems.length === 0 && styles.disabledButton]} disabled={cartItems.length === 0} onPress={sendOrder}>
+              <Text style={styles.sendText}>Send to Kitchen</Text>
+              <DIcon name="restaurant" color="#ffffff" />
             </Pressable>
-          </View>
-          <View style={styles.subtotal}>
-            <Text style={styles.tinyLabel}>SUBTOTAL</Text>
-            <Text style={styles.subtotalText}>$29.00</Text>
-          </View>
-        </View>
-      </SoftCard>
-      <Pressable style={styles.voiceButton}>
-        <DIcon name="mic" color="#ffffff" size={28} />
-      </Pressable>
-      <Pressable style={styles.sendButton}>
-        <Text style={styles.sendText}>Send to Kitchen</Text>
-        <DIcon name="restaurant" color="#ffffff" />
-      </Pressable>
-    </ScreenShell>
+          </>
+        )}
+      </ScreenShell>
+    </ProtectedScreen>
   );
 }
 
 function MenuItemCard({
-  category,
-  name,
-  price,
+  item,
   image,
   index,
+  quantity,
+  onAdd,
+  onRemove,
 }: {
-  category: string;
-  name: string;
-  price: string;
+  item: (typeof menu)[number];
   image: string;
   index: number;
+  quantity: number;
+  onAdd: () => void;
+  onRemove: () => void;
 }) {
   return (
     <SoftCard enteringIndex={index} style={styles.menuCard}>
@@ -400,136 +849,135 @@ function MenuItemCard({
       </Pressable>
       <Image source={{ uri: image }} style={styles.menuImage} contentFit="cover" />
       <View style={styles.menuCopy}>
-        <Text style={styles.tinyLabel}>{category}</Text>
+        <Text style={styles.tinyLabel}>{item.label}</Text>
         <Text numberOfLines={1} style={styles.menuName}>
-          {name}
+          {item.name}
         </Text>
         <View style={styles.priceRow}>
-          <Text style={styles.priceText}>{price}</Text>
-          <Pressable style={styles.addButton}>
-            <DIcon name="add" color="#ffffff" />
-          </Pressable>
+          <Text style={styles.priceText}>{item.price}</Text>
+          {quantity > 0 ? (
+            <View style={styles.menuQuantityControl}>
+              <Pressable style={styles.menuQtyButton} onPress={onRemove}>
+                <DIcon name="remove" color={red} size={18} />
+              </Pressable>
+              <Text style={styles.menuQtyText}>{quantity}</Text>
+              <Pressable style={styles.menuQtyButtonRed} onPress={onAdd}>
+                <DIcon name="add" color="#ffffff" size={18} />
+              </Pressable>
+            </View>
+          ) : (
+            <Pressable style={styles.addButton} onPress={onAdd}>
+              <DIcon name="add" color="#ffffff" />
+            </Pressable>
+          )}
         </View>
       </View>
     </SoftCard>
   );
 }
 
-type KitchenStatus = 'pending' | 'cooking' | 'ready';
-
-const kitchenOrders = [
-  {
-    order: 'Order #2401',
-    table: 'Table 12',
-    elapsed: '18m elapsed',
-    server: 'Server: Elena',
-    status: 'Delayed',
-    tone: 'alert' as const,
-    items: [
-      ['2x', 'Wagyu Burger', 'Well Done'],
-      ['1x', 'Truffle Fries', 'No Salt'],
-    ],
-    action: 'Start Cooking',
-    state: 'pending' as KitchenStatus,
-  },
-  {
-    order: 'Order #2405',
-    table: 'Table 04',
-    elapsed: '08m elapsed',
-    server: 'Server: Marcus',
-    status: 'Cooking',
-    tone: 'soft' as const,
-    items: [
-      ['1x', 'Pan-Seared Scallops', ''],
-      ['1x', 'Lobster Bisque', ''],
-      ['1x', 'Dry-Aged Ribeye', 'Medium Rare'],
-    ],
-    action: 'Mark Ready',
-    state: 'cooking' as KitchenStatus,
-  },
-  {
-    order: 'Order #2408',
-    table: 'Table 18',
-    elapsed: '02m elapsed',
-    server: 'Server: Sarah',
-    status: 'Pending',
-    tone: 'neutral' as const,
-    items: [['4x', 'Miso Mackerel', '']],
-    action: 'Start Cooking',
-    state: 'pending' as KitchenStatus,
-  },
-  {
-    order: 'Order #2399',
-    table: 'Table 07',
-    elapsed: 'Picked up',
-    server: 'Server: Elena',
-    status: 'Ready',
-    tone: 'ready' as const,
-    items: [['1x', 'Caesar Salad', '']],
-    action: 'Recall Order',
-    state: 'ready' as KitchenStatus,
-  },
-];
+type KitchenStatus = 'pending' | 'cooking' | 'completed';
 
 export function KitchenDashboardScreen() {
   const [selected, setSelected] = useState<KitchenStatus>('pending');
-  const counts = useMemo(() => ({ pending: 8, cooking: 5, ready: 12 }), []);
+  const user = useAuthStore((state) => state.currentUser);
+  const orders = useAuthStore((state) => state.orders);
+  const toggleSpecialty = useAuthStore((state) => state.toggleSpecialty);
+  const visibleOrders = orders.filter((order) => user?.specialties.length === 0 || user?.specialties.includes(order.category));
+  const counts = useMemo(
+    () => ({
+      pending: visibleOrders.filter((order) => order.status === 'pending').length,
+      cooking: visibleOrders.filter((order) => order.status === 'cooking').length,
+      completed: visibleOrders.filter((order) => order.status === 'completed').length,
+    }),
+    [visibleOrders],
+  );
 
   return (
-    <ScreenShell active="kitchen" backgroundColor={bg}>
-      <TopBar title="Kitchen Monitor" />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statusTabs}>
-        {(['pending', 'cooking', 'ready'] as KitchenStatus[]).map((state) => (
-          <Pressable
-            key={state}
-            onPress={() => setSelected(state)}
-            style={[styles.statusTab, selected === state ? styles.statusTabActive : styles.statusTabIdle]}>
-            <Text style={[styles.statusTabText, selected === state ? styles.whiteText : styles.mutedText]}>
-              {state[0].toUpperCase() + state.slice(1)} ({counts[state]})
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
-      <View style={styles.kitchenGrid}>
-        {kitchenOrders.map((order, index) => (
-          <KitchenOrderCard key={order.order} order={order} index={index} />
-        ))}
-      </View>
-    </ScreenShell>
+    <ProtectedScreen route="kitchen">
+      <ScreenShell active="kitchen" backgroundColor={bg}>
+        <TopBar title="Kitchen Monitor" />
+        <SoftCard style={styles.specialtyCard}>
+          <Text style={styles.boldLabel}>Notify me for</Text>
+          <Text style={styles.smallLabel}>Choose stations you cook. Only matching orders appear here.</Text>
+          <View style={styles.specialtyWrap}>
+            {specialtyOptions.map((specialty) => {
+              const selectedSpecialty = user?.specialties.includes(specialty);
+              return (
+                <Pressable
+                  key={specialty}
+                  onPress={() => toggleSpecialty(specialty)}
+                  style={[styles.specialtyChip, selectedSpecialty ? styles.chipActive : styles.chipIdle]}>
+                  <Text style={[styles.chipText, selectedSpecialty ? styles.chipTextActive : styles.chipTextIdle]}>{specialty}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </SoftCard>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statusTabs}>
+          {(['pending', 'cooking', 'completed'] as KitchenStatus[]).map((state) => (
+            <Pressable
+              key={state}
+              onPress={() => setSelected(state)}
+              style={[styles.statusTab, selected === state ? styles.statusTabActive : styles.statusTabIdle]}>
+              <Text style={[styles.statusTabText, selected === state ? styles.whiteText : styles.mutedText]}>
+                {state[0].toUpperCase() + state.slice(1)} ({counts[state]})
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+        <View style={styles.kitchenGrid}>
+          {visibleOrders
+            .filter((order) => order.status === selected)
+            .map((order, index) => (
+              <KitchenOrderCard key={order.id} order={order} index={index} />
+            ))}
+        </View>
+      </ScreenShell>
+    </ProtectedScreen>
   );
 }
 
-function KitchenOrderCard({ order, index }: { order: (typeof kitchenOrders)[number]; index: number }) {
-  const ready = order.state === 'ready';
+function KitchenOrderCard({ order, index }: { order: ReturnType<typeof useAuthStore.getState>['orders'][number]; index: number }) {
+  const updateOrderStatus = useAuthStore((state) => state.updateOrderStatus);
+  const completed = order.status === 'completed';
+  const nextStatus = order.status === 'pending' ? 'cooking' : 'completed';
+  const action = order.status === 'pending' ? 'Start Cooking' : order.status === 'cooking' ? 'Mark Completed' : 'Completed';
+  const tone = order.status === 'completed' ? 'ready' : order.status === 'cooking' ? 'soft' : 'neutral';
+
   return (
-    <SoftCard enteringIndex={index} style={[styles.kitchenCard, ready && styles.readyCard]}>
+    <SoftCard enteringIndex={index} style={[styles.kitchenCard, completed && styles.readyCard]}>
       <View style={styles.cardHeader}>
         <View>
           <View style={styles.inlineRow}>
-            <Text style={styles.boldLabel}>{order.order}</Text>
-            <StatusPill label={order.status} tone={order.tone} />
+            <Text style={styles.boldLabel}>Order {order.id}</Text>
+            <StatusPill label={order.status} tone={tone} />
           </View>
           <Text style={styles.headline}>{order.table}</Text>
+          <Text style={styles.smallLabel}>{order.category}</Text>
         </View>
         <View style={styles.rightCopy}>
-          <Text style={[styles.boldLabel, order.status === 'Delayed' && styles.errorText]}>{order.elapsed}</Text>
+          <Text style={styles.boldLabel}>{order.elapsed}</Text>
           <Text style={styles.smallLabel}>{order.server}</Text>
         </View>
       </View>
       <View>
-        {order.items.map(([qty, item, note]) => (
-          <View key={`${order.order}-${item}`} style={styles.orderLine}>
+        {order.items.map(({ qty, name, note }) => (
+          <View key={`${order.id}-${name}`} style={styles.orderLine}>
             <View style={styles.inlineRow}>
-              <Text style={[styles.orderQty, ready && styles.fadedText]}>{qty}</Text>
-              <Text style={[styles.orderItem, ready && styles.strikeText]}>{item}</Text>
+              <Text style={[styles.orderQty, completed && styles.fadedText]}>{qty}</Text>
+              <Text style={[styles.orderItem, completed && styles.strikeText]}>{name}</Text>
             </View>
             {note ? <Text style={styles.noteText}>{note}</Text> : null}
           </View>
         ))}
       </View>
-      <Pressable style={[styles.primaryButton, ready && styles.outlineButton]}>
-        <DIcon name={ready ? 'history' : order.state === 'cooking' ? 'check-circle' : 'restaurant-menu'} color={ready ? red : '#ffffff'} />
-        <Text style={[styles.primaryButtonText, ready && styles.outlineButtonText]}>{order.action}</Text>
+      <Pressable
+        disabled={completed}
+        onPress={() => updateOrderStatus(order.id, nextStatus)}
+        style={[styles.primaryButton, completed && styles.outlineButton]}>
+        <DIcon name={completed ? 'check-circle' : order.status === 'cooking' ? 'check-circle' : 'restaurant-menu'} color={completed ? red : '#ffffff'} />
+        <Text style={[styles.primaryButtonText, completed && styles.outlineButtonText]}>{action}</Text>
       </Pressable>
     </SoftCard>
   );
@@ -537,8 +985,9 @@ function KitchenOrderCard({ order, index }: { order: (typeof kitchenOrders)[numb
 
 export function ManagerDashboardScreen() {
   return (
+    <ProtectedScreen route="manager">
     <ScreenShell active="manager" backgroundColor={lowBg}>
-      <TopBar title="Welcome back, Chef" />
+      <TopBar title="Welcome back, Manager" />
       <View style={styles.section}>
         <Text style={styles.displayTitle}>Business Insights</Text>
         <Text style={styles.bodyMuted}>Real-time overview of your restaurant performance</Text>
@@ -601,6 +1050,7 @@ export function ManagerDashboardScreen() {
         ))}
       </View>
     </ScreenShell>
+    </ProtectedScreen>
   );
 }
 
@@ -637,21 +1087,66 @@ function MetricCard({
 }
 
 export function LoginScreen() {
+  const [mode, setMode] = useState<'company' | 'worker'>('company');
+  const [identifier, setIdentifier] = useState('OWNER@DINEFLOW.TEST');
+  const [password, setPassword] = useState('password123');
+  const setCurrentUserFromApi = useAuthStore((state) => state.setCurrentUserFromApi);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const submit = async () => {
+    setLoading(true);
+    setApiError(null);
+
+    try {
+      const response =
+        mode === 'company'
+          ? await loginCompanyRequest({ identifier, password })
+          : await loginWorkerRequest({ email: identifier.trim().toLowerCase(), password });
+      setCurrentUserFromApi(response);
+      const user = response.user;
+      router.replace(homeForRole(user?.role ?? 'owner') as never);
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : 'Login failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <ScreenShell backgroundColor="#f5f5f5" contentStyle={styles.authScroll}>
       <View style={styles.loginMark}>
         <DIcon name="restaurant-menu" color={red} size={48} />
       </View>
       <Text style={styles.authTitle}>DineFlow OS</Text>
-      <Text style={styles.authSubtitle}>Welcome back, Staff</Text>
+      <Text style={styles.authSubtitle}>Connected to {getApiBaseUrl()}</Text>
       <SoftCard style={styles.authCard}>
-        <AuthField label="Staff ID" placeholder="Enter your ID" icon="person" />
-        <AuthField label="PIN" placeholder="••••" icon="lock" secureTextEntry />
-        <Pressable style={styles.authButton} onPress={() => router.replace('/' as never)}>
-          <Text style={styles.primaryButtonText}>Login</Text>
+        <View style={styles.segmented}>
+          {(['company', 'worker'] as const).map((item) => (
+            <Pressable key={item} onPress={() => setMode(item)} style={[styles.segment, mode === item && styles.segmentActive]}>
+              <Text style={[styles.segmentText, mode === item && styles.whiteText]}>{item === 'company' ? 'Company' : 'Worker'}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <AuthField
+          label={mode === 'company' ? 'Email or Company ID' : 'Worker Email'}
+          placeholder={mode === 'company' ? 'OWNER@MAIL.COM or COMPANYID' : 'worker@restaurant.com'}
+          icon={mode === 'company' ? 'business' : 'mail'}
+          value={identifier}
+          onChangeText={(value) => setIdentifier(mode === 'company' ? value.toUpperCase() : value)}
+        />
+        <AuthField label="Password" placeholder="Enter password" icon="lock" value={password} onChangeText={setPassword} secureTextEntry />
+        {apiError ? <Text style={styles.errorMessage}>{apiError}</Text> : null}
+        <Pressable style={styles.authButton} onPress={submit}>
+          <Text style={styles.primaryButtonText}>{loading ? 'Logging in...' : 'Login'}</Text>
           <DIcon name="arrow-forward" color="#ffffff" size={18} />
         </Pressable>
-        <Text style={styles.forgotText}>Forgot PIN?</Text>
+        <Pressable onPress={() => router.push('/sign-up' as never)}>
+          <Text style={styles.forgotText}>Register a company</Text>
+        </Pressable>
+        <Pressable onPress={() => router.push('/worker-register' as never)}>
+          <Text style={styles.forgotText}>Register as invited worker</Text>
+        </Pressable>
       </SoftCard>
       <View style={styles.authDivider}>
         <View style={styles.dividerLine} />
@@ -667,21 +1162,69 @@ export function LoginScreen() {
 }
 
 export function SignUpScreen() {
+  const [ownerEmail, setOwnerEmail] = useState('OWNER@DINEFLOW.TEST');
+  const [companyId, setCompanyId] = useState('DINEFLOWHQ');
+  const [password, setPassword] = useState('password123');
+  const [confirmPassword, setConfirmPassword] = useState('password123');
+  const setCurrentUserFromApi = useAuthStore((state) => state.setCurrentUserFromApi);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const submit = async () => {
+    setLoading(true);
+    setApiError(null);
+
+    try {
+      const response = await registerCompanyRequest({
+        email: ownerEmail.trim().toLowerCase(),
+        companyId,
+        password,
+        confirmPassword,
+      });
+      setCurrentUserFromApi(response);
+      router.replace('/workers' as never);
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : 'Company registration failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <ScreenShell backgroundColor={bg} contentStyle={styles.authScroll}>
       <View style={styles.signUpMark}>
         <DIcon name="restaurant-menu" color="#ffffff" size={32} />
       </View>
-      <Text style={styles.authTitle}>Join the Team</Text>
-      <Text style={styles.authSubtitle}>Set up your DineFlow OS staff account</Text>
+      <Text style={styles.authTitle}>Register Company</Text>
+      <Text style={styles.authSubtitle}>Only a company owner can create the workspace</Text>
       <View style={styles.signupForm}>
-        <AuthField label="Full Name" placeholder="Enter your name" icon="person" compact />
-        <AuthField label="Email" placeholder="email@restaurant.com" icon="mail" compact />
-        <AuthField label="Role" placeholder="Select your position" icon="badge" rightIcon="expand-more" compact />
-        <AuthField label="Create PIN" placeholder="4-digit security code" icon="lock" rightIcon="visibility" secureTextEntry compact />
-        <Text style={styles.pinHint}>This PIN is used for quick terminal access.</Text>
-        <Pressable style={styles.authButton} onPress={() => router.replace('/login' as never)}>
-          <Text style={styles.primaryButtonText}>Create Account</Text>
+        <AuthField
+          label="Company ID"
+          placeholder="DINEFLOWHQ"
+          icon="business"
+          compact
+          value={companyId}
+          onChangeText={(value) => setCompanyId(value.toUpperCase())}
+        />
+        <AuthField label="Owner Email" placeholder="owner@restaurant.com" icon="mail" compact value={ownerEmail} onChangeText={setOwnerEmail} />
+        <AuthField label="Password" placeholder="Minimum 6 characters" icon="lock" compact value={password} onChangeText={setPassword} secureTextEntry />
+        <AuthField
+          label="Repeat Password"
+          placeholder="Repeat password"
+          icon="lock"
+          compact
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          secureTextEntry
+        />
+        {apiError ? <Text style={styles.errorMessage}>{apiError}</Text> : null}
+        <View style={styles.companyIdBox}>
+          <Text style={styles.smallLabel}>Company ID</Text>
+          <Text style={styles.companyIdText}>{companyId}</Text>
+          <Text style={styles.pinHint}>Workers can only join this ID after you add their email.</Text>
+        </View>
+        <Pressable style={styles.authButton} onPress={submit}>
+          <Text style={styles.primaryButtonText}>{loading ? 'Creating...' : 'Create Company'}</Text>
         </Pressable>
       </View>
       <Pressable style={styles.loginLink} onPress={() => router.push('/login' as never)}>
@@ -697,6 +1240,175 @@ export function SignUpScreen() {
   );
 }
 
+export function WorkersScreen() {
+  const [email, setEmail] = useState('newchef@dineflow.test');
+  const [role, setRole] = useState<WorkerRole>('chef');
+  const [selectedSpecialties, setSelectedSpecialties] = useState<string[]>(['Burgers']);
+  const currentUser = useAuthStore((state) => state.currentUser);
+  const invites = useAuthStore((state) => state.invites);
+  const inviteWorker = useAuthStore((state) => state.inviteWorker);
+  const authError = useAuthStore((state) => state.authError);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const toggleInviteSpecialty = (specialty: string) => {
+    setSelectedSpecialties((items) =>
+      items.includes(specialty) ? items.filter((item) => item !== specialty) : [...items, specialty],
+    );
+  };
+
+  const submit = async () => {
+    setLoading(true);
+    setApiError(null);
+
+    try {
+      if (!currentUser?.token) {
+        throw new Error('Login again before inviting workers');
+      }
+
+      await inviteWorkerRequest(currentUser.token, {
+        email: email.trim().toLowerCase(),
+        role,
+        specialties: role === 'chef' ? selectedSpecialties : [],
+      });
+      inviteWorker({
+        email,
+        role,
+        specialties: role === 'chef' ? selectedSpecialties : [],
+      });
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : 'Failed to invite worker');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <ProtectedScreen route="workers">
+      <ScreenShell active="workers" backgroundColor={lowBg}>
+        <TopBar title="Company Workers" />
+        <View style={styles.section}>
+          <Text style={styles.displayTitle}>Invite Staff</Text>
+          <Text style={styles.bodyMuted}>Company ID: {currentUser?.companyId}</Text>
+        </View>
+        <SoftCard style={styles.workerForm}>
+          <AuthField label="Worker Email" placeholder="worker@restaurant.com" icon="mail" value={email} onChangeText={setEmail} compact />
+          <Text style={styles.fieldLabel}>Role</Text>
+          <View style={styles.roleRow}>
+            {(['chef', 'server', 'manager'] as WorkerRole[]).map((item) => (
+              <Pressable key={item} onPress={() => setRole(item)} style={[styles.roleChip, role === item && styles.chipActive]}>
+                <Text style={[styles.chipText, role === item ? styles.chipTextActive : styles.chipTextIdle]}>
+                  {item === 'server' ? 'Servant' : item}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          {role === 'chef' ? (
+            <>
+              <Text style={styles.fieldLabel}>Chef order notifications</Text>
+              <View style={styles.specialtyWrap}>
+                {specialtyOptions.map((specialty) => {
+                  const active = selectedSpecialties.includes(specialty);
+                  return (
+                    <Pressable
+                      key={specialty}
+                      onPress={() => toggleInviteSpecialty(specialty)}
+                      style={[styles.specialtyChip, active ? styles.chipActive : styles.chipIdle]}>
+                      <Text style={[styles.chipText, active ? styles.chipTextActive : styles.chipTextIdle]}>{specialty}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </>
+          ) : null}
+          {apiError || authError ? <Text style={styles.errorMessage}>{apiError ?? authError}</Text> : null}
+          <Pressable style={styles.authButton} onPress={submit}>
+            <Text style={styles.primaryButtonText}>{loading ? 'Adding...' : 'Add Worker Email'}</Text>
+          </Pressable>
+        </SoftCard>
+        <View style={styles.popularList}>
+          {invites.map((invite, index) => (
+            <SoftCard key={invite.email} enteringIndex={index} style={styles.workerCard}>
+              <View>
+                <Text style={styles.boldLabel}>{invite.email}</Text>
+                <Text style={styles.smallLabel}>
+                  {invite.role} {invite.specialties.length ? `• ${invite.specialties.join(', ')}` : ''}
+                </Text>
+              </View>
+              <StatusPill label={invite.accepted ? 'Joined' : 'Invited'} tone={invite.accepted ? 'ready' : 'neutral'} />
+            </SoftCard>
+          ))}
+        </View>
+      </ScreenShell>
+    </ProtectedScreen>
+  );
+}
+
+export function WorkerRegisterScreen() {
+  const [companyId, setCompanyId] = useState('DINEFLOWHQ');
+  const [name, setName] = useState('Worker');
+  const [email, setEmail] = useState('worker@restaurant.com');
+  const [password, setPassword] = useState('password123');
+  const [confirmPassword, setConfirmPassword] = useState('password123');
+  const setCurrentUserFromApi = useAuthStore((state) => state.setCurrentUserFromApi);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const submit = async () => {
+    setLoading(true);
+    setApiError(null);
+
+    try {
+      const response = await registerWorkerRequest({
+        companyId,
+        name,
+        email: email.trim().toLowerCase(),
+        password,
+        confirmPassword,
+      });
+      setCurrentUserFromApi(response);
+      router.replace(homeForRole(response.user.role) as never);
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : 'Worker registration failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <ScreenShell backgroundColor={bg} contentStyle={styles.authScroll}>
+      <View style={styles.signUpMark}>
+        <DIcon name="badge" color="#ffffff" size={32} />
+      </View>
+      <Text style={styles.authTitle}>Worker Join</Text>
+      <Text style={styles.authSubtitle}>Use the Company ID and invited email</Text>
+      <View style={styles.signupForm}>
+        <AuthField label="Company ID" placeholder="DINEFLOWHQ" icon="business" compact value={companyId} onChangeText={(value) => setCompanyId(value.toUpperCase())} />
+        <AuthField label="Name" placeholder="Your name" icon="person" compact value={name} onChangeText={setName} />
+        <AuthField label="Invited Email" placeholder="worker@restaurant.com" icon="mail" compact value={email} onChangeText={setEmail} />
+        <AuthField label="Password" placeholder="Minimum 6 characters" icon="lock" compact value={password} onChangeText={setPassword} secureTextEntry />
+        <AuthField
+          label="Repeat Password"
+          placeholder="Repeat password"
+          icon="lock"
+          compact
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          secureTextEntry
+        />
+        {apiError ? <Text style={styles.errorMessage}>{apiError}</Text> : null}
+        <Pressable style={styles.authButton} onPress={submit}>
+          <Text style={styles.primaryButtonText}>{loading ? 'Joining...' : 'Create Worker Account'}</Text>
+        </Pressable>
+      </View>
+      <Pressable style={styles.loginLink} onPress={() => router.push('/login' as never)}>
+        <Text style={styles.bodyMuted}>Already joined? </Text>
+        <Text style={styles.linkText}>Login</Text>
+      </Pressable>
+    </ScreenShell>
+  );
+}
+
 function AuthField({
   label,
   placeholder,
@@ -704,6 +1416,8 @@ function AuthField({
   rightIcon,
   secureTextEntry,
   compact,
+  value,
+  onChangeText,
 }: {
   label: string;
   placeholder: string;
@@ -711,6 +1425,8 @@ function AuthField({
   rightIcon?: keyof typeof MaterialIcons.glyphMap;
   secureTextEntry?: boolean;
   compact?: boolean;
+  value?: string;
+  onChangeText?: (text: string) => void;
 }) {
   return (
     <View style={styles.authField}>
@@ -721,6 +1437,8 @@ function AuthField({
           placeholder={placeholder}
           placeholderTextColor={c.border}
           secureTextEntry={secureTextEntry}
+          value={value}
+          onChangeText={onChangeText}
           style={styles.fieldInput}
         />
         {rightIcon ? <DIcon name={rightIcon} color={c.textSecondary} /> : null}
@@ -1036,18 +1754,63 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 12,
     position: 'absolute',
+    zIndex: 50,
     ...DineFlowShadows.nav,
+    elevation: 24,
   },
   navItem: {
+    alignItems: 'center',
     borderRadius: r.pill,
+    justifyContent: 'center',
+    minHeight: 48,
+    minWidth: 48,
     padding: 12,
   },
   navItemActive: {
     backgroundColor: 'rgba(255,255,255,0.2)',
     transform: [{ scale: 1.1 }],
   },
+  navVoiceItem: {
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    borderColor: 'rgba(255,255,255,0.28)',
+    borderWidth: 1,
+  },
   orderScroll: {
     paddingBottom: 176,
+  },
+  tableSelectCanvas: {
+    paddingHorizontal: 24,
+    paddingTop: 8,
+  },
+  tableSelectGrid: {
+    gap: 16,
+    marginTop: 24,
+  },
+  tableSelectCard: {
+    gap: 24,
+  },
+  tableSelectFooter: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  selectedTableBanner: {
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginHorizontal: 24,
+    marginTop: 24,
+    padding: 18,
+    ...DineFlowShadows.level1,
+  },
+  changeTableButton: {
+    borderColor: red,
+    borderRadius: r.pill,
+    borderWidth: 2,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
   hero: {
     backgroundColor: red,
@@ -1162,6 +1925,37 @@ const styles = StyleSheet.create({
     width: 40,
     ...DineFlowShadows.level1,
   },
+  menuQuantityControl: {
+    alignItems: 'center',
+    backgroundColor: c.surfaceContainer,
+    borderRadius: r.pill,
+    flexDirection: 'row',
+    padding: 4,
+  },
+  menuQtyButton: {
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    height: 32,
+    justifyContent: 'center',
+    width: 32,
+  },
+  menuQtyButtonRed: {
+    alignItems: 'center',
+    backgroundColor: red,
+    borderRadius: 16,
+    height: 32,
+    justifyContent: 'center',
+    width: 32,
+  },
+  menuQtyText: {
+    ...font,
+    color: c.textPrimary,
+    fontSize: 14,
+    fontWeight: '700',
+    minWidth: 24,
+    textAlign: 'center',
+  },
   orderTray: {
     borderRadius: 32,
     borderWidth: 0,
@@ -1193,6 +1987,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: 16,
+  },
+  cartLineList: {
+    borderTopColor: c.surfaceContainer,
+    borderTopWidth: 1,
+    gap: 10,
+    paddingTop: 16,
+  },
+  cartLine: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
   quantityPill: {
     alignItems: 'center',
@@ -1245,6 +2050,65 @@ const styles = StyleSheet.create({
     width: 56,
     ...DineFlowShadows.level2,
   },
+  voiceButtonActive: {
+    backgroundColor: primary,
+    transform: [{ scale: 1.06 }],
+  },
+  voicePanel: {
+    borderWidth: 0,
+    gap: 16,
+    marginHorizontal: 24,
+    marginTop: 16,
+  },
+  closeVoiceButton: {
+    alignItems: 'center',
+    backgroundColor: c.surfaceContainerHigh,
+    borderRadius: 18,
+    height: 36,
+    justifyContent: 'center',
+    width: 36,
+  },
+  voiceInputBox: {
+    alignItems: 'center',
+    backgroundColor: bg,
+    borderRadius: r.pill,
+    flexDirection: 'row',
+    gap: 12,
+    minHeight: 56,
+    paddingHorizontal: 18,
+  },
+  voiceActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  voiceSecondaryButton: {
+    alignItems: 'center',
+    borderColor: red,
+    borderRadius: r.pill,
+    borderWidth: 2,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 48,
+  },
+  voiceApplyButton: {
+    alignItems: 'center',
+    backgroundColor: red,
+    borderRadius: r.pill,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 48,
+  },
+  voiceSuggestions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  voiceSuggestionChip: {
+    backgroundColor: c.surfaceContainerLow,
+    borderRadius: r.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
   sendButton: {
     alignItems: 'center',
     backgroundColor: red,
@@ -1256,6 +2120,9 @@ const styles = StyleSheet.create({
     marginTop: 18,
     paddingVertical: 16,
     ...DineFlowShadows.level2,
+  },
+  disabledButton: {
+    opacity: 0.45,
   },
   sendText: {
     ...font,
@@ -1530,6 +2397,109 @@ const styles = StyleSheet.create({
     gap: 24,
     marginTop: 48,
     width: '100%',
+  },
+  accessButton: {
+    marginTop: 32,
+  },
+  aiStatusCard: {
+    gap: 12,
+    marginTop: 24,
+  },
+  specialtyCard: {
+    gap: 12,
+    marginTop: 24,
+  },
+  specialtyWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 8,
+  },
+  specialtyChip: {
+    borderRadius: r.pill,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  segmented: {
+    backgroundColor: c.surfaceContainer,
+    borderRadius: r.pill,
+    flexDirection: 'row',
+    padding: 6,
+  },
+  segment: {
+    alignItems: 'center',
+    borderRadius: r.pill,
+    flex: 1,
+    justifyContent: 'center',
+    paddingVertical: 10,
+  },
+  segmentActive: {
+    backgroundColor: red,
+  },
+  segmentText: {
+    ...font,
+    color: c.textSecondary,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  errorMessage: {
+    ...font,
+    color: c.danger,
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  companyIdBox: {
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
+    gap: 6,
+    padding: 20,
+    ...DineFlowShadows.level1,
+  },
+  companyIdText: {
+    ...font,
+    color: red,
+    fontSize: 32,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  secondaryAuthButton: {
+    alignItems: 'center',
+    borderColor: red,
+    borderRadius: r.pill,
+    borderWidth: 2,
+    height: 56,
+    justifyContent: 'center',
+    width: '100%',
+  },
+  secondaryAuthText: {
+    ...font,
+    color: red,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  workerForm: {
+    gap: 18,
+    marginTop: 24,
+  },
+  roleRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  roleChip: {
+    alignItems: 'center',
+    backgroundColor: c.surfaceContainerHigh,
+    borderRadius: r.pill,
+    flex: 1,
+    justifyContent: 'center',
+    paddingVertical: 12,
+  },
+  workerCard: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 18,
   },
   signupForm: {
     gap: 24,
