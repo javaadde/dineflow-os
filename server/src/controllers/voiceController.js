@@ -58,7 +58,7 @@ async function parseOrderCommand(req, res) {
           {
             role: 'system',
             content:
-              'You parse restaurant voice order commands. Return only JSON with intent add, remove, clear, send, or unknown; itemName must exactly match a menu item when present; quantity must be a positive integer; message is a short waiter-facing confirmation.',
+              'You parse restaurant voice order commands. Return only JSON with intent add, remove, clear, send, or unknown; items is an array of every ordered menu item with exact itemName and positive integer quantity; itemName is the first item for backward compatibility; quantity is the first item quantity; message is a short waiter-facing confirmation.',
           },
           {
             role: 'user',
@@ -67,6 +67,7 @@ async function parseOrderCommand(req, res) {
               menu: menuItems,
               schema: {
                 intent: 'add | remove | clear | send | unknown',
+                items: [{ itemName: 'exact menu item name', quantity: 'positive integer' }],
                 itemName: 'exact menu item name or null',
                 quantity: 'positive integer',
                 message: 'short confirmation',
@@ -91,6 +92,12 @@ async function parseOrderCommand(req, res) {
 
     return res.status(200).json({
       intent: parsed.intent || 'unknown',
+      items: Array.isArray(parsed.items)
+        ? parsed.items.map((item) => ({
+            itemName: item.itemName || null,
+            quantity: Number(item.quantity) > 0 ? Number(item.quantity) : 1,
+          }))
+        : [],
       itemName: parsed.itemName || null,
       quantity: Number(parsed.quantity) > 0 ? Number(parsed.quantity) : 1,
       message: parsed.message || 'Command parsed.',

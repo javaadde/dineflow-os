@@ -87,6 +87,7 @@ export function registerWorkerRequest(input: {
 export type VoiceOrderCommand = {
   intent: 'add' | 'remove' | 'clear' | 'send' | 'unknown';
   itemName: string | null;
+  items?: { itemName: string; quantity: number }[];
   quantity: number;
   message: string;
 };

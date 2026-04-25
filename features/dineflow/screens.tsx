@@ -3,6 +3,7 @@ import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { PropsWithChildren, useEffect, useMemo, useState } from 'react';
 import {
+  Modal,
   Pressable,
   ScrollView,
   StyleProp,
@@ -430,6 +431,12 @@ type CartItem = (typeof menu)[number] & {
   qty: number;
 };
 
+type VoiceDraftItem = (typeof menu)[number] & {
+  qty: number;
+};
+
+type VoiceStage = 'idle' | 'recording' | 'review';
+
 const numberWords: Record<string, number> = {
   one: 1,
   two: 2,
@@ -451,6 +458,9 @@ export function OrderCreationScreen() {
   const [voiceListening, setVoiceListening] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState('');
   const [voiceFeedback, setVoiceFeedback] = useState('Try: "add two Caprese Salad" or "send order".');
+  const [voiceStage, setVoiceStage] = useState<VoiceStage>('idle');
+  const [voiceDraft, setVoiceDraft] = useState<VoiceDraftItem[]>([]);
+  const [lastVoiceParam, setLastVoiceParam] = useState<string | null>(null);
   const selectedTable = tables.find((table) => table.id === selectedTableId);
   const currentUser = useAuthStore((state) => state.currentUser);
   const createOrder = useAuthStore((state) => state.createOrder);
@@ -459,11 +469,13 @@ export function OrderCreationScreen() {
   const subtotal = cartItems.reduce((total, item) => total + item.qty * item.amount, 0);
 
   useEffect(() => {
-    if (params.voice && selectedTable) {
-      setVoiceOpen(true);
-      setVoiceFeedback('Voice ordering is ready. Say or type a command.');
+    const voiceParam = Array.isArray(params.voice) ? params.voice[0] : params.voice;
+
+    if (voiceParam && voiceParam !== lastVoiceParam) {
+      setLastVoiceParam(voiceParam);
+      startVoiceAgent();
     }
-  }, [params.voice, selectedTable]);
+  }, [params.voice, lastVoiceParam]);
 
   const updateCart = (item: (typeof menu)[number], delta: number) => {
     setCart((current) => {
@@ -481,52 +493,52 @@ export function OrderCreationScreen() {
     });
   };
 
-  const applyLocalVoiceCommand = (spokenText = voiceTranscript) => {
+  const setDraftQuantity = (itemName: string, delta: number) => {
+    setVoiceDraft((current) =>
+      current
+        .map((item) => (item.name === itemName ? { ...item, qty: Math.max(item.qty + delta, 0) } : item))
+        .filter((item) => item.qty > 0),
+    );
+  };
+
+  const removeDraftItem = (itemName: string) => {
+    setVoiceDraft((current) => current.filter((item) => item.name !== itemName));
+  };
+
+  const localDraftFromTranscript = (spokenText = voiceTranscript) => {
     const text = spokenText.trim().toLowerCase();
 
     if (!text) {
       setVoiceFeedback('Say or type an order command first.');
-      return false;
+      return [];
     }
 
-    if (text.includes('clear')) {
-      setCart({});
-      setVoiceFeedback('Cart cleared.');
-      return true;
-    }
+    const matchedItems = menu.filter((item) => text.includes(item.name.toLowerCase()));
 
-    if (text.includes('send') || text.includes('place order')) {
-      if (cartItems.length === 0) {
-        setVoiceFeedback('Add at least one item before sending.');
-        return false;
-      }
-
-      sendOrder();
-      return true;
-    }
-
-    const matchedItem = menu.find((item) => text.includes(item.name.toLowerCase()));
-
-    if (!matchedItem) {
+    if (matchedItems.length === 0) {
       setVoiceFeedback('I could not match that to a menu item.');
-      return false;
+      return [];
     }
 
-    const quantityMatch = text.match(/\b\d+\b/);
-    const wordQuantity = Object.entries(numberWords).find(([word]) => text.includes(word));
-    const quantity = quantityMatch ? Number(quantityMatch[0]) : wordQuantity ? wordQuantity[1] : 1;
-    const delta = text.includes('remove') || text.includes('delete') || text.includes('less') ? -quantity : quantity;
+    return matchedItems.map((item) => {
+      const itemIndex = text.indexOf(item.name.toLowerCase());
+      const beforeItem = text.slice(Math.max(0, itemIndex - 32), itemIndex);
+      const quantityMatch = beforeItem.match(/\b\d+\b/g);
+      const wordQuantity = Object.entries(numberWords)
+        .reverse()
+        .find(([word]) => beforeItem.includes(word));
+      const quantity = quantityMatch?.length ? Number(quantityMatch[quantityMatch.length - 1]) : wordQuantity ? wordQuantity[1] : 1;
 
-    updateCart(matchedItem, delta);
-    setVoiceFeedback(`${delta > 0 ? 'Added' : 'Removed'} ${Math.abs(delta)} ${matchedItem.name}.`);
-    return true;
+      return { ...item, qty: quantity };
+    });
   };
 
-  const applyVoiceCommand = async (spokenText = voiceTranscript) => {
+  const reviewVoiceTranscript = async (spokenText = voiceTranscript) => {
     const text = spokenText.trim();
 
     if (!text) {
       setVoiceFeedback('Say or type an order command first.');
+      setVoiceStage('review');
       return;
     }
 
@@ -537,42 +549,48 @@ export function OrderCreationScreen() {
           menu: menu.map((item) => ({ name: item.name, category: item.category })),
         });
 
-        if (command.intent === 'clear') {
-          setCart({});
-          setVoiceFeedback(command.message || 'Cart cleared.');
+        const commandItems = command.items?.length
+          ? command.items
+          : command.itemName
+            ? [{ itemName: command.itemName, quantity: command.quantity }]
+            : [];
+        const draftItems = commandItems
+          .map((commandItem) => {
+            const matchedItem = menu.find((item) => item.name === commandItem.itemName);
+            return matchedItem ? { ...matchedItem, qty: Math.max(commandItem.quantity || 1, 1) } : null;
+          })
+          .filter((item): item is VoiceDraftItem => Boolean(item));
+
+        if (draftItems.length > 0) {
+          setVoiceDraft(draftItems);
+          setVoiceFeedback(command.message || `${draftItems.length} item${draftItems.length === 1 ? '' : 's'} found.`);
+          setVoiceStage('review');
           return;
-        }
-
-        if (command.intent === 'send') {
-          if (cartItems.length === 0) {
-            setVoiceFeedback('Add at least one item before sending.');
-            return;
-          }
-
-          sendOrder();
-          return;
-        }
-
-        if (command.intent === 'add' || command.intent === 'remove') {
-          const matchedItem = menu.find((item) => item.name === command.itemName);
-
-          if (matchedItem) {
-            const quantity = Math.max(command.quantity || 1, 1);
-            updateCart(matchedItem, command.intent === 'add' ? quantity : -quantity);
-            setVoiceFeedback(command.message || `${command.intent === 'add' ? 'Added' : 'Removed'} ${quantity} ${matchedItem.name}.`);
-            return;
-          }
         }
       } catch {
         setVoiceFeedback('Using local voice command matching.');
       }
     }
 
-    applyLocalVoiceCommand(text);
+    const draftItems = localDraftFromTranscript(text);
+    setVoiceDraft(draftItems);
+    setVoiceStage('review');
+    setVoiceFeedback(draftItems.length > 0 ? `${draftItems.length} item${draftItems.length === 1 ? '' : 's'} found.` : 'No menu items found. Edit the text and parse again.');
+  };
+
+  const addVoiceDraftToCart = () => {
+    voiceDraft.forEach((item) => updateCart(item, item.qty));
+    setVoiceStage('idle');
+    setVoiceOpen(false);
+    setVoiceDraft([]);
+    setVoiceTranscript('');
+    setVoiceFeedback('Voice items added to cart.');
   };
 
   const startVoiceAgent = () => {
     setVoiceOpen(true);
+    setVoiceStage('recording');
+    setVoiceDraft([]);
     setVoiceFeedback('Listening...');
 
     const SpeechRecognition =
@@ -616,7 +634,10 @@ export function OrderCreationScreen() {
 
     if (!SpeechRecognition) {
       setVoiceListening(false);
-      setVoiceFeedback('Voice listening is not available here. Type a command below.');
+      setTimeout(() => {
+        setVoiceStage('review');
+        setVoiceFeedback('Voice listening is not available here. Type the order and parse it.');
+      }, 1200);
       return;
     }
 
@@ -627,9 +648,10 @@ export function OrderCreationScreen() {
     recognition.onresult = (event) => {
       const transcript = event.results[event.resultIndex][0].transcript;
       setVoiceTranscript(transcript);
-      void applyVoiceCommand(transcript);
+      void reviewVoiceTranscript(transcript);
     };
     recognition.onerror = () => {
+      setVoiceStage('review');
       setVoiceFeedback('I could not hear that. Try again or type the command.');
     };
     recognition.onend = () => setVoiceListening(false);
@@ -653,36 +675,138 @@ export function OrderCreationScreen() {
     router.push('/waiter' as never);
   };
 
+  const voiceModals = (
+    <>
+      <Modal transparent visible={voiceOpen && voiceStage === 'recording'} animationType="fade" onRequestClose={() => setVoiceStage('idle')}>
+        <View style={styles.voiceModalOverlay}>
+          <View style={styles.recordingModal}>
+            <View style={styles.recordingPulse}>
+              <DIcon name="mic" color="#ffffff" size={34} />
+            </View>
+            <Text style={styles.voiceModalTitle}>Recording Order</Text>
+            <Text style={styles.voiceModalBody}>Listening for table items...</Text>
+            <Text style={styles.voiceWaveText}>Voice is being recorded</Text>
+            <Pressable
+              style={styles.voiceModalSecondary}
+              onPress={() => {
+                setVoiceListening(false);
+                setVoiceStage('review');
+                setVoiceFeedback('Recording stopped. Edit the text if needed.');
+              }}>
+              <Text style={styles.secondaryAuthText}>Stop & Review</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+      <Modal transparent visible={voiceOpen && voiceStage === 'review'} animationType="slide" onRequestClose={() => setVoiceStage('idle')}>
+        <View style={styles.voiceModalOverlay}>
+          <View style={styles.reviewModal}>
+            <View style={styles.cardHeader}>
+              <View>
+                <Text style={styles.voiceModalTitle}>Review Voice Order</Text>
+                <Text style={styles.smallLabel}>{voiceFeedback}</Text>
+              </View>
+              <Pressable
+                onPress={() => {
+                  setVoiceOpen(false);
+                  setVoiceStage('idle');
+                }}
+                style={styles.closeVoiceButton}>
+                <DIcon name="close" color={c.textSecondary} size={20} />
+              </Pressable>
+            </View>
+            <View style={styles.voiceInputBox}>
+              <DIcon name="record-voice-over" color={red} />
+              <TextInput
+                value={voiceTranscript}
+                onChangeText={setVoiceTranscript}
+                placeholder='Try "two Caprese Salad and one Ribeye Steak"'
+                placeholderTextColor={c.border}
+                style={styles.fieldInput}
+              />
+            </View>
+            <Pressable style={styles.voiceModalSecondary} onPress={() => void reviewVoiceTranscript()}>
+              <Text style={styles.secondaryAuthText}>Parse Again</Text>
+            </Pressable>
+            <View style={styles.voiceDraftList}>
+              {voiceDraft.length > 0 ? (
+                voiceDraft.map((item) => (
+                  <View key={item.name} style={styles.voiceDraftRow}>
+                    <View style={styles.flexOne}>
+                      <Text style={styles.boldLabel}>{item.name}</Text>
+                      <Text style={styles.smallLabel}>{item.price}</Text>
+                    </View>
+                    <View style={styles.menuQuantityControl}>
+                      <Pressable style={styles.menuQtyButton} onPress={() => setDraftQuantity(item.name, -1)}>
+                        <DIcon name="remove" color={primary} size={18} />
+                      </Pressable>
+                      <Text style={styles.menuQtyText}>{item.qty}</Text>
+                      <Pressable style={styles.menuQtyButtonRed} onPress={() => setDraftQuantity(item.name, 1)}>
+                        <DIcon name="add" color="#ffffff" size={18} />
+                      </Pressable>
+                    </View>
+                    <Pressable style={styles.voiceRemoveButton} onPress={() => removeDraftItem(item.name)}>
+                      <DIcon name="delete-outline" color={c.danger} size={20} />
+                    </Pressable>
+                  </View>
+                ))
+              ) : (
+                <View style={styles.emptyVoiceDraft}>
+                  <Text style={styles.boldLabel}>No items detected</Text>
+                  <Text style={styles.smallLabel}>Edit the text above or record again.</Text>
+                </View>
+              )}
+            </View>
+            <View style={styles.voiceActions}>
+              <Pressable style={styles.voiceSecondaryButton} onPress={startVoiceAgent}>
+                <Text style={styles.secondaryAuthText}>Record Again</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.voiceApplyButton, voiceDraft.length === 0 && styles.disabledButton]}
+                disabled={voiceDraft.length === 0}
+                onPress={addVoiceDraftToCart}>
+                <Text style={styles.primaryButtonText}>Add to Cart</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </>
+  );
+
   return (
     <ProtectedScreen route="order">
       <ScreenShell active="order" backgroundColor={lowBg} noTopPad contentStyle={styles.orderScroll}>
         <TopBar title={selectedTable ? `New Order - ${selectedTable.id}` : 'Select Table'} showBack />
         {!selectedTable ? (
-          <View style={styles.tableSelectCanvas}>
-            <View style={styles.section}>
-              <Text style={styles.displayTitle}>Choose a Table</Text>
-              <Text style={styles.bodyMuted}>Select the guest table before opening the menu list.</Text>
-            </View>
-            <View style={styles.tableSelectGrid}>
-              {tables.map((table, index) => (
-                <Pressable key={table.id} onPress={() => setSelectedTableId(table.id)}>
-                  <SoftCard enteringIndex={index} style={styles.tableSelectCard}>
-                    <View style={styles.cardHeader}>
-                      <View>
-                        <Text style={styles.headline}>{table.id}</Text>
-                        <Text style={styles.labelMuted}>{table.meta}</Text>
+          <>
+            <View style={styles.tableSelectCanvas}>
+              <View style={styles.section}>
+                <Text style={styles.displayTitle}>Choose a Table</Text>
+                <Text style={styles.bodyMuted}>Select the guest table before opening the menu list.</Text>
+              </View>
+              <View style={styles.tableSelectGrid}>
+                {tables.map((table, index) => (
+                  <Pressable key={table.id} onPress={() => setSelectedTableId(table.id)}>
+                    <SoftCard enteringIndex={index} style={styles.tableSelectCard}>
+                      <View style={styles.cardHeader}>
+                        <View>
+                          <Text style={styles.headline}>{table.id}</Text>
+                          <Text style={styles.labelMuted}>{table.meta}</Text>
+                        </View>
+                        <StatusPill label={table.status} tone={table.tone} />
                       </View>
-                      <StatusPill label={table.status} tone={table.tone} />
-                    </View>
-                    <View style={styles.tableSelectFooter}>
-                      <Text style={styles.boldLabel}>{table.title}</Text>
-                      <DIcon name="arrow-forward" color={red} />
-                    </View>
-                  </SoftCard>
-                </Pressable>
-              ))}
+                      <View style={styles.tableSelectFooter}>
+                        <Text style={styles.boldLabel}>{table.title}</Text>
+                        <DIcon name="arrow-forward" color={red} />
+                      </View>
+                    </SoftCard>
+                  </Pressable>
+                ))}
+              </View>
             </View>
-          </View>
+            {voiceModals}
+          </>
         ) : (
           <>
             <View style={styles.hero}>
@@ -772,50 +896,100 @@ export function OrderCreationScreen() {
             <Pressable style={[styles.voiceButton, voiceListening && styles.voiceButtonActive]} onPress={startVoiceAgent}>
               <DIcon name={voiceListening ? 'hearing' : 'mic'} color="#ffffff" size={28} />
             </Pressable>
-            {voiceOpen ? (
-              <SoftCard style={styles.voicePanel}>
-                <View style={styles.cardHeader}>
-                  <View>
-                    <Text style={styles.trayTitle}>Voice Agent</Text>
-                    <Text style={styles.smallLabel}>{voiceFeedback}</Text>
+            <Modal transparent visible={voiceOpen && voiceStage === 'recording'} animationType="fade" onRequestClose={() => setVoiceStage('idle')}>
+              <View style={styles.voiceModalOverlay}>
+                <View style={styles.recordingModal}>
+                  <View style={styles.recordingPulse}>
+                    <DIcon name="mic" color="#ffffff" size={34} />
                   </View>
-                  <Pressable onPress={() => setVoiceOpen(false)} style={styles.closeVoiceButton}>
-                    <DIcon name="close" color={c.textSecondary} size={20} />
+                  <Text style={styles.voiceModalTitle}>Recording Order</Text>
+                  <Text style={styles.voiceModalBody}>Listening for table items...</Text>
+                  <Text style={styles.voiceWaveText}>Voice is being recorded</Text>
+                  <Pressable
+                    style={styles.voiceModalSecondary}
+                    onPress={() => {
+                      setVoiceListening(false);
+                      setVoiceStage('review');
+                      setVoiceFeedback('Recording stopped. Edit the text if needed.');
+                    }}>
+                    <Text style={styles.secondaryAuthText}>Stop & Review</Text>
                   </Pressable>
                 </View>
-                <View style={styles.voiceInputBox}>
-                  <DIcon name="record-voice-over" color={red} />
-                  <TextInput
-                    value={voiceTranscript}
-                    onChangeText={setVoiceTranscript}
-                    placeholder='Try "add two Ribeye Steak"'
-                    placeholderTextColor={c.border}
-                    style={styles.fieldInput}
-                  />
-                </View>
-                <View style={styles.voiceActions}>
-                  <Pressable style={styles.voiceSecondaryButton} onPress={startVoiceAgent}>
-                    <Text style={styles.secondaryAuthText}>{voiceListening ? 'Listening...' : 'Listen'}</Text>
-                  </Pressable>
-                  <Pressable style={styles.voiceApplyButton} onPress={() => void applyVoiceCommand()}>
-                    <Text style={styles.primaryButtonText}>Apply Command</Text>
-                  </Pressable>
-                </View>
-                <View style={styles.voiceSuggestions}>
-                  {['add two Caprese Salad', 'remove one Ribeye Steak', 'clear cart', 'send order'].map((command) => (
+              </View>
+            </Modal>
+            <Modal transparent visible={voiceOpen && voiceStage === 'review'} animationType="slide" onRequestClose={() => setVoiceStage('idle')}>
+              <View style={styles.voiceModalOverlay}>
+                <View style={styles.reviewModal}>
+                  <View style={styles.cardHeader}>
+                    <View>
+                      <Text style={styles.voiceModalTitle}>Review Voice Order</Text>
+                      <Text style={styles.smallLabel}>{voiceFeedback}</Text>
+                    </View>
                     <Pressable
-                      key={command}
-                      style={styles.voiceSuggestionChip}
                       onPress={() => {
-                        setVoiceTranscript(command);
-                        void applyVoiceCommand(command);
-                      }}>
-                      <Text style={styles.smallLabel}>{command}</Text>
+                        setVoiceOpen(false);
+                        setVoiceStage('idle');
+                      }}
+                      style={styles.closeVoiceButton}>
+                      <DIcon name="close" color={c.textSecondary} size={20} />
                     </Pressable>
-                  ))}
+                  </View>
+                  <View style={styles.voiceInputBox}>
+                    <DIcon name="record-voice-over" color={red} />
+                    <TextInput
+                      value={voiceTranscript}
+                      onChangeText={setVoiceTranscript}
+                      placeholder='Try "two Caprese Salad and one Ribeye Steak"'
+                      placeholderTextColor={c.border}
+                      style={styles.fieldInput}
+                    />
+                  </View>
+                  <Pressable style={styles.voiceModalSecondary} onPress={() => void reviewVoiceTranscript()}>
+                    <Text style={styles.secondaryAuthText}>Parse Again</Text>
+                  </Pressable>
+                  <View style={styles.voiceDraftList}>
+                    {voiceDraft.length > 0 ? (
+                      voiceDraft.map((item) => (
+                        <View key={item.name} style={styles.voiceDraftRow}>
+                          <View style={styles.flexOne}>
+                            <Text style={styles.boldLabel}>{item.name}</Text>
+                            <Text style={styles.smallLabel}>{item.price}</Text>
+                          </View>
+                          <View style={styles.menuQuantityControl}>
+                            <Pressable style={styles.menuQtyButton} onPress={() => setDraftQuantity(item.name, -1)}>
+                              <DIcon name="remove" color={primary} size={18} />
+                            </Pressable>
+                            <Text style={styles.menuQtyText}>{item.qty}</Text>
+                            <Pressable style={styles.menuQtyButtonRed} onPress={() => setDraftQuantity(item.name, 1)}>
+                              <DIcon name="add" color="#ffffff" size={18} />
+                            </Pressable>
+                          </View>
+                          <Pressable style={styles.voiceRemoveButton} onPress={() => removeDraftItem(item.name)}>
+                            <DIcon name="delete-outline" color={c.danger} size={20} />
+                          </Pressable>
+                        </View>
+                      ))
+                    ) : (
+                      <View style={styles.emptyVoiceDraft}>
+                        <Text style={styles.boldLabel}>No items detected</Text>
+                        <Text style={styles.smallLabel}>Edit the text above or record again.</Text>
+                      </View>
+                    )}
+                  </View>
+                  <View style={styles.voiceActions}>
+                    <Pressable style={styles.voiceSecondaryButton} onPress={startVoiceAgent}>
+                      <Text style={styles.secondaryAuthText}>Record Again</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.voiceApplyButton, voiceDraft.length === 0 && styles.disabledButton]}
+                      disabled={voiceDraft.length === 0}
+                      onPress={addVoiceDraftToCart}>
+                      <Text style={styles.primaryButtonText}>Add to Cart</Text>
+                    </Pressable>
+                  </View>
                 </View>
-              </SoftCard>
-            ) : null}
+              </View>
+            </Modal>
             <Pressable style={[styles.sendButton, cartItems.length === 0 && styles.disabledButton]} disabled={cartItems.length === 0} onPress={sendOrder}>
               <Text style={styles.sendText}>Send to Kitchen</Text>
               <DIcon name="restaurant" color="#ffffff" />
@@ -2060,6 +2234,72 @@ const styles = StyleSheet.create({
     marginHorizontal: 24,
     marginTop: 16,
   },
+  voiceModalOverlay: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(15,23,42,0.42)',
+    flex: 1,
+    justifyContent: 'center',
+    padding: 24,
+  },
+  recordingModal: {
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
+    gap: 14,
+    padding: 28,
+    width: '100%',
+    ...DineFlowShadows.level2,
+  },
+  reviewModal: {
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
+    gap: 16,
+    maxHeight: '86%',
+    padding: 20,
+    width: '100%',
+    ...DineFlowShadows.level2,
+  },
+  recordingPulse: {
+    alignItems: 'center',
+    backgroundColor: red,
+    borderRadius: 40,
+    height: 80,
+    justifyContent: 'center',
+    width: 80,
+    ...DineFlowShadows.level2,
+  },
+  voiceModalTitle: {
+    ...font,
+    color: c.textPrimary,
+    fontSize: 22,
+    fontWeight: '700',
+    lineHeight: 28,
+  },
+  voiceModalBody: {
+    ...font,
+    color: c.textSecondary,
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+  voiceWaveText: {
+    ...font,
+    color: red,
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 18,
+    marginBottom: 6,
+  },
+  voiceModalSecondary: {
+    alignItems: 'center',
+    borderColor: red,
+    borderRadius: r.pill,
+    borderWidth: 2,
+    justifyContent: 'center',
+    minHeight: 48,
+    paddingHorizontal: 18,
+  },
   closeVoiceButton: {
     alignItems: 'center',
     backgroundColor: c.surfaceContainerHigh,
@@ -2080,6 +2320,32 @@ const styles = StyleSheet.create({
   voiceActions: {
     flexDirection: 'row',
     gap: 12,
+  },
+  voiceDraftList: {
+    gap: 12,
+  },
+  voiceDraftRow: {
+    alignItems: 'center',
+    backgroundColor: bg,
+    borderRadius: 20,
+    flexDirection: 'row',
+    gap: 10,
+    padding: 12,
+  },
+  voiceRemoveButton: {
+    alignItems: 'center',
+    backgroundColor: '#ffdad6',
+    borderRadius: 18,
+    height: 36,
+    justifyContent: 'center',
+    width: 36,
+  },
+  emptyVoiceDraft: {
+    alignItems: 'center',
+    backgroundColor: bg,
+    borderRadius: 20,
+    gap: 4,
+    padding: 18,
   },
   voiceSecondaryButton: {
     alignItems: 'center',
